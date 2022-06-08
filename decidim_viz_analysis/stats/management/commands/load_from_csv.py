@@ -36,4 +36,4 @@ class Command(BaseCommand):
                             user_to_add.supports.add(proposal_to_add)
 
         self.stdout.write('There are {} proposals!'.format(Proposal.objects.count()))
-        self.stdout.write('There are {} proposals!'.format(User.objects.count()))
+        self.stdout.write('There are {} users!'.format(User.objects.count()))
