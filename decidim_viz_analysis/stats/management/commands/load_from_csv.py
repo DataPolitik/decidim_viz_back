@@ -28,10 +28,12 @@ class Command(BaseCommand):
                 users = row['endorsements/user_endorsements'].split(',')
                 for user in users:
                     user_trimmed = user.strip()
-                    user_to_add = User()
-                    user_to_add.name = user_trimmed
-                    user_to_add.save()
-                    user_to_add.supports.add(proposal_to_add)
+                    if len(user_trimmed) > 0:
+                        if not User.objects.filter(name=user_trimmed).exists():
+                            user_to_add = User()
+                            user_to_add.name = user_trimmed
+                            user_to_add.save()
+                            user_to_add.supports.add(proposal_to_add)
 
         """ Do your work here """
         self.stdout.write('There are {} proposals!'.format(Proposal.objects.count()))
