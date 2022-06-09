@@ -17,7 +17,6 @@ def __compute_phi(author_source: pd.Series, author_target: pd.Series):
         try:
             t = (phi * sqrt(len(source_np) - 2)) / sqrt(1 - phi * phi)
         except:
-            print("N {}\n".format(len(source_np)))
             t = 0
 
     return phi, t
