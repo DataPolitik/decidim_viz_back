@@ -8,7 +8,7 @@ class Proposal(models.Model):
     proposal_title_fr = models.CharField(max_length=255)
 
     def __str__(self):
-        return self.id_proposal
+        return str(self.id_proposal)
 
 
 class User(models.Model):
