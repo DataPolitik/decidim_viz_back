@@ -33,7 +33,7 @@ class Command(BaseCommand):
                             user_to_add = User()
                             user_to_add.name = user_trimmed
                             user_to_add.save()
-                            user_to_add.supports.add(proposal_to_add)
+                            proposal_to_add.users.add(user_to_add)
 
         self.stdout.write('There are {} proposals!'.format(Proposal.objects.count()))
         self.stdout.write('There are {} users!'.format(User.objects.count()))
