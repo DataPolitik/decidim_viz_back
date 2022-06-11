@@ -80,8 +80,10 @@ def endorsements(request):
     G = nx.Graph()
     dict_users = dict()
     cache_proposals = dict()
+    dict_names = dict()
     for user in list_of_users:
         dict_users[user.id] = dict()
+        dict_names[user.id] = user.name
         cache_proposals[user.id] = set(user.proposal_set.values_list('id_proposal', flat=True))
         G.add_node(user.id)
 
@@ -121,10 +123,10 @@ def endorsements(request):
                 G.add_edge(user_a.id, user_b.id)
                 G[user_a.id][user_b.id]['phi'] = phi
 
-    pos_ = nx.spring_layout(G)
+    pos_ = nx.circular_layout(G)
     response = {'users': dict_users, 'positions': dict()}
 
     for key, coordinates in pos_.items():
-        print(coordinates)
-        response['positions'][key] = list(coordinates)
+        name = dict_names[key]
+        response['positions'][name] = list(coordinates)
     return JsonResponse(response)
