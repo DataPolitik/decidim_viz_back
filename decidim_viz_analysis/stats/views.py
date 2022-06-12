@@ -12,67 +12,6 @@ def index(request):
     return HttpResponse("Hello, world. You're at the polls index.")
 
 
-def make_edge(x, y, text, width):
-    return  go.Scatter(x         = x,
-                       y         = y,
-                       line      = dict(width = width,
-                                   color = '#888'),
-                       hoverinfo = 'text',
-                       text      = ([]),
-                       mode      = 'lines')
-
-
-def prepare_graph(G):
-    pos_ = nx.spring_layout(G)
-    # For each edge, make an edge_trace, append to list
-    edge_trace = []
-    for edge in G.edges():
-        phi = G.edges()[edge]['phi']
-        if phi == 0:
-            continue
-        char_1 = edge[0]
-        char_2 = edge[1]
-        x0, y0 = pos_[char_1]
-        x1, y1 = pos_[char_2]
-        text = "{} -- {} : {}".format(char_1, char_2, phi)
-
-        trace = make_edge([x0, x1, None], [y0, y1, None], text,
-                              width=0.5)
-        edge_trace.append(trace)
-
-    # Make a node trace
-    node_trace = go.Scatter(x=[],
-                            y=[],
-                            text=[],
-                            textposition="top center",
-                            textfont_size=10,
-                            mode='markers+text',
-                            hoverinfo='none',
-                            marker=dict(color=[],
-                                        size=[],
-                                        line=None))
-    # For each node in midsummer, get the position and size and add to the node_trace
-    for node in G.nodes():
-        x, y = pos_[node]
-        node_trace['x'] += tuple([x])
-        node_trace['y'] += tuple([y])
-        node_trace['marker']['color'] += tuple(['cornflowerblue'])
-
-    # Customize layout
-    layout = go.Layout(
-        xaxis={'showgrid': False, 'zeroline': False},  # no gridlines
-        yaxis={'showgrid': False, 'zeroline': False},  # no gridlines
-    )  # Create figure
-    fig = go.Figure(layout=layout)  # Add all edge traces
-    for trace in edge_trace:
-        fig.add_trace(trace)  # Add node trace
-    fig.add_trace(node_trace)  # Remove legend
-    fig.update_layout(showlegend=False)  # Remove tick labels
-    fig.update_xaxes(showticklabels=False)
-    fig.update_yaxes(showticklabels=False)  # Show figure
-    fig.write_image("fig1.svg")
-
-
 def endorsements(request):
     if exists("stats/cache/all.pickle"):
         with open('stats/cache/all.pickle', 'rb') as handle:
