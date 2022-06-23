@@ -2,9 +2,11 @@ import pickle
 import networkx as nx
 from math import sqrt
 from os.path import exists
-import plotly.graph_objects as go
+from collections import Counter
+from django.db.models import Count
 
 from django.http import HttpResponse, JsonResponse
+from django_pivot.pivot import pivot
 from stats.models import Proposal, User, Comment
 
 
@@ -150,3 +152,17 @@ def endorsements(request):
             pickle.dump(response, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     return JsonResponse(response)
+
+
+def group_by_endorsements(request):
+    response = Proposal.objects.values('id_proposal',).annotate(total=Count('users'),)
+    total_list = [e['total'] for e in response]
+    counts = Counter(total_list)
+    return JsonResponse({'count': counts})
+
+
+def group_by_comments(request):
+    response = Proposal.objects.values('id_proposal',).annotate(total=Count('comments'),)
+    total_list = [e['total'] for e in response]
+    counts = Counter(total_list)
+    return JsonResponse({'count': counts})
