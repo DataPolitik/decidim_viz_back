@@ -157,12 +157,20 @@ def endorsements(request):
 def group_by_endorsements(request):
     response = Proposal.objects.values('id_proposal',).annotate(total=Count('users'),)
     total_list = [e['total'] for e in response]
-    counts = Counter(total_list)
-    return JsonResponse({'count': counts})
+    counts = dict(Counter(total_list))
+    list_response = []
+    for key, value in counts.items():
+        list_response.append({'count': key, 'size': value})
+    list_response = sorted(list_response, key=lambda d: d['count'])
+    return JsonResponse({'histogram': list_response})
 
 
 def group_by_comments(request):
     response = Proposal.objects.values('id_proposal',).annotate(total=Count('comments'),)
     total_list = [e['total'] for e in response]
     counts = Counter(total_list)
-    return JsonResponse({'count': counts})
+    list_response = []
+    for key, value in counts.items():
+        list_response.append({'count': key, 'size': value})
+    list_response = sorted(list_response, key=lambda d: d['count'])
+    return JsonResponse({'histogram': list_response})
