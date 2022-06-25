@@ -6,7 +6,6 @@ from collections import Counter
 from django.db.models import Count
 
 from django.http import HttpResponse, JsonResponse
-from django_pivot.pivot import pivot
 from stats.models import Proposal, User, Comment
 
 
