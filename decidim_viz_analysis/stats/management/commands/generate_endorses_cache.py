@@ -11,7 +11,11 @@ from stats.models import Proposal, User, Comment
 class Command(BaseCommand):
     help = 'Generates an endorsements cache'
 
+    def add_arguments(self, parser):
+        parser.add_argument('output_path', type=str)
+
     def handle(self, *args, **options):
+        output_path = options['output_path']
         threshold = 0.5
         set_of_proposals = set(Proposal.objects.values_list('id_proposal', flat=True))
         list_of_users = User.objects.all()
@@ -71,5 +75,5 @@ class Command(BaseCommand):
         for key, coordinates in pos_.items():
             response['positions'][key] = list(coordinates)
 
-        with open('stats/cache/endorsement_all.pickle', 'wb') as handle:
+        with open(output_path, 'wb') as handle:
             pickle.dump(response, handle, protocol=pickle.HIGHEST_PROTOCOL)
