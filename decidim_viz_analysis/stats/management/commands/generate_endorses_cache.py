@@ -28,7 +28,8 @@ class Command(BaseCommand):
         n = len(set_of_proposals)
 
         count_relations = 0
-        for user_a in list_of_users:
+        for i, user_a in enumerate(list_of_users):
+            print("User {} / {}".format(i, len(list_of_users)))
             x1 = cache_proposals[user_a.id]
             for user_b in list_of_users:
                 if user_a == user_b:
