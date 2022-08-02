@@ -15,6 +15,7 @@ class Comment(models.Model):
     id_comment = models.IntegerField(primary_key=True)
     author = models.ForeignKey(User, on_delete=models.CASCADE)
     comments = models.ManyToManyField('self')
+    language = models.CharField(max_length=4, null=True)
     reply_to = models.ForeignKey('self', on_delete=models.CASCADE, null=True)
     proposal_replied = models.ForeignKey(to='stats.Proposal', on_delete=models.CASCADE)
     depth = models.IntegerField(primary_key=False, null=False, default=0)

@@ -20,6 +20,7 @@ class Command(BaseCommand):
                 commment_to_add = Comment()
                 commment_to_add.id_comment = row['id']
                 commment_to_add.depth = row['depth']
+                commment_to_add.language = row['locale']
                 if not User.objects.filter(name=row['author/name']).exists():
                     user_to_add = User()
                     user_to_add.name = row['author/name']

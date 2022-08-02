@@ -206,3 +206,14 @@ def group_by_comments(request):
         list_response.append({'count': key, 'size': value})
     list_response = sorted(list_response, key=lambda d: d['count'])
     return JsonResponse({'histogram': list_response})
+
+
+def get_comment_languages(request):
+    response = Comment.objects.values('language') # Distinct is not supported on sqlite
+    language_list = list(set([l['language'] for l in response]))
+    return JsonResponse(language_list, safe=False)
+
+
+def get_num_comments_per_language(request, lang):
+    response = Comment.objects.filter(language=lang).count()
+    return JsonResponse(response, safe=False)
