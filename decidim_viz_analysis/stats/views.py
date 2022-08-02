@@ -1,5 +1,7 @@
 import pickle
 import networkx as nx
+import networkx.algorithms.community as nxcom
+
 from math import sqrt
 from os.path import exists
 from collections import Counter
@@ -13,8 +15,34 @@ def index(request):
     return HttpResponse("Hello, world. You're at the polls index.")
 
 
-def comments(request):
+def get_color(i, r_off=1, g_off=1, b_off=1):
+    n = 26
+    r = (n * (i + r_off) * 3) % 255
+    g = (n * (i + r_off) * 5) % 255
+    b = (n * (i + r_off) * 7) % 255
+    return (r, g, b)
 
+
+def community_net(G_in):
+    G_out = nx.Graph()
+    node_color = {}
+    node_community = {}
+    communities = nxcom.greedy_modularity_communities(G_in)
+    for i, com in enumerate(communities):
+        for v in com:
+            G_out.add_node(v)
+            node_color[v] = get_color(i)
+            node_community[v] = i
+    G_out.add_edges_from(G_in.edges())
+    return node_color, node_community, G_out
+
+
+def filter_nodes(G, minimum_degree= 2):
+    remove = [node for node,degree in dict(G.degree()).items() if degree < minimum_degree]
+    G.remove_nodes_from(remove)
+    return G
+
+def comments(request):
     if exists("stats/cache/comments_all.pickle"):
         with open('stats/cache/comments_all.pickle', 'rb') as handle:
             response = pickle.load(handle)
@@ -69,10 +97,13 @@ def comments(request):
                     G.add_edge(user_a.id, user_b.id)
                     G[user_a.id][user_b.id]['phi'] = phi
 
+
+        node_color, node_community, G = community_net(G)
         pos_ = nx.circular_layout(G)
         response = {'users': dict_users,
                     'positions': dict(),
-                    'usernames': dict_names
+                    'usernames': dict_names,
+                    'colors': node_color
                     }
 
         for key, coordinates in pos_.items():
@@ -138,10 +169,12 @@ def endorsements(request):
                     G.add_edge(user_a.id, user_b.id)
                     G[user_a.id][user_b.id]['phi'] = phi
 
+        node_color, node_community, G = community_net(G)
         pos_ = nx.circular_layout(G)
         response = {'users': dict_users,
                     'positions': dict(),
-                    'usernames': dict_names
+                    'usernames': dict_names,
+                    'colors': node_color
                     }
 
         for key, coordinates in pos_.items():
