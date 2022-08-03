@@ -2,7 +2,7 @@ import csv
 
 from django.core.management.base import BaseCommand
 
-from stats.models import Proposal, User
+from stats.models import Proposal, User, Category
 
 
 class Command(BaseCommand):
@@ -23,6 +23,16 @@ class Command(BaseCommand):
                 proposal_to_add.proposal_title_es = row['title/machine_translations/es']
                 proposal_to_add.proposal_title_en = row['title/machine_translations/en']
                 proposal_to_add.proposal_title_fr = row['title/machine_translations/fr']
+                proposal_to_add.endorsements = len(row['endorsements/user_endorsements'].split(','))
+                if row['category/id'] != '':
+                    if Category.objects.filter(id=row['category/id']).exists():
+                        proposal_to_add.category = Category.objects.get(id=row['category/id'])
+                    else:
+                        category_to_add = Category(id=row['category/id'])
+                        category_to_add.name_es = row['category/name/es']
+                        category_to_add.name_en = row['category/name/en']
+                        category_to_add.save()
+                        proposal_to_add.category = category_to_add
                 proposal_to_add.save()
 
                 users = row['endorsements/user_endorsements'].split(',')

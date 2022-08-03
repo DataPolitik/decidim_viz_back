@@ -8,7 +8,9 @@ from collections import Counter
 from django.db.models import Count
 
 from django.http import HttpResponse, JsonResponse
-from stats.models import Proposal, User, Comment
+from stats.models import Proposal, User, Comment, Category
+
+
 
 
 def index(request):
@@ -208,12 +210,87 @@ def group_by_comments(request):
     return JsonResponse({'histogram': list_response})
 
 
-def get_comment_languages(request):
+def _list_of_languages():
     response = Comment.objects.values('language') # Distinct is not supported on sqlite
-    language_list = list(set([l['language'] for l in response]))
+    return list(set([l['language'] for l in response]))
+
+
+def get_comment_languages(request):
+    language_list = _list_of_languages()
     return JsonResponse(language_list, safe=False)
 
 
-def get_num_comments_per_language(request, lang):
-    response = Comment.objects.filter(language=lang).count()
-    return JsonResponse(response, safe=False)
+def get_proposals_by_supports(request, limit):
+    proposals = Proposal.objects.order_by('-endorsements')[0:limit]
+    response = {'proposals': []}
+
+    for proposal in proposals:
+        response['proposals'].append(
+            {
+                'id': proposal.id_proposal,
+                'title_es': proposal.proposal_title_es,
+                'title_fr': proposal.proposal_title_fr,
+                'title_en': proposal.proposal_title_en,
+                'endorsements': proposal.endorsements,
+                'category': proposal.category.pk if proposal.category is not None else ''
+            }
+        )
+    return JsonResponse(response)
+
+
+def get_proposals_by_comments(request, limit):
+    proposals = Proposal.objects.annotate(num_comments=Count('comment')).order_by('-num_comments')[0:limit]
+    response = {'proposals': []}
+
+    for proposal in proposals:
+        response['proposals'].append(
+            {
+                'id': proposal.id_proposal,
+                'title_es': proposal.proposal_title_es,
+                'title_fr': proposal.proposal_title_fr,
+                'title_en': proposal.proposal_title_en,
+                'endorsements': proposal.endorsements,
+                'category': proposal.category.pk if proposal.category is not None else '',
+                'comments': proposal.num_comments
+            }
+        )
+    return JsonResponse(response)
+
+
+def get_categories(request):
+    categories = Category.objects.all()
+    response = {'categories': []}
+    for category in categories:
+        response['categories'].append(
+            {'id':category.pk,
+             'name_es': category.name_es,
+             'name_ca': category.name_ca,
+             'name_en': category.name_en,
+            }
+        )
+    return JsonResponse(response)
+
+
+def get_categories_by_proposals(request, limit):
+    categories = Category.objects.annotate(num_proposals=Count('proposal')).order_by('-num_proposals')[0:limit]
+    response = {'categories': []}
+    for category in categories:
+        response['categories'].append(
+            {'id':category.pk,
+             'name_es': category.name_es,
+             'name_ca': category.name_ca,
+             'name_en': category.name_en,
+             'categories': category.num_proposals
+            }
+        )
+    return JsonResponse(response)
+
+
+def get_num_comments_per_language(request):
+    language_list = _list_of_languages()
+    response = {'languages': []}
+    for lang in language_list:
+        response['languages'].append({'language': lang, 'count': Comment.objects.filter(language=lang).count()})
+    response['languages'] = sorted(response['languages'], key=lambda d: d['count'], reverse=True)
+
+    return JsonResponse(response)
