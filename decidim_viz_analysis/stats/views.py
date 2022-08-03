@@ -286,6 +286,31 @@ def get_categories_by_proposals(request, limit):
     return JsonResponse(response)
 
 
+def get_categories_by_comments(request):
+    proposals = Proposal.objects.all().annotate(num_comments=Count('comment'))
+    categories = {}
+    for proposal in proposals:
+        if proposal.category is not None:
+            if proposal.category.pk in categories:
+                categories[proposal.category.pk] = categories[proposal.category.pk] + proposal.num_comments
+            else:
+                categories[proposal.category.pk] = proposal.num_comments
+
+    response = {'categories': []}
+    for category_id, category_count in categories.items():
+        category_detail = Category.objects.get(pk=category_id)
+        response['categories'].append(
+            {'id': category_id,
+             'name_es': category_detail.name_es,
+             'name_ca': category_detail.name_ca,
+             'name_en': category_detail.name_en,
+             'comments': category_count
+            }
+        )
+    response['categories'] = sorted(response['categories'], key=lambda d: d['comments'], reverse=True)
+    return JsonResponse(response)
+
+
 def get_num_comments_per_language(request):
     language_list = _list_of_languages()
     response = {'languages': []}
