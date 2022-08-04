@@ -321,3 +321,30 @@ def get_num_comments_per_language(request):
     response['languages'] = sorted(response['languages'], key=lambda d: d['count'], reverse=True)
 
     return JsonResponse(response)
+
+
+def get_most_commented_proposal(request):
+    proposal = Proposal.objects.all().annotate(num_comments=Count('comment')).order_by("num_comments")[0]
+    response = {
+        'id': proposal.id_proposal,
+        'title_es': proposal.proposal_title_es,
+        'title_fr': proposal.proposal_title_fr,
+        'title_en': proposal.proposal_title_en,
+        'endorsements': proposal.endorsements,
+        'category': proposal.category.pk if proposal.category is not None else '',
+        'comments': proposal.num_comments
+    }
+    return JsonResponse(response)
+
+
+def get_most_endorsed_proposal(request):
+    proposal = Proposal.objects.all().annotate(num_endorses=Count('users')).order_by("num_endorses")[0]
+    response = {
+        'id': proposal.id_proposal,
+        'title_es': proposal.proposal_title_es,
+        'title_fr': proposal.proposal_title_fr,
+        'title_en': proposal.proposal_title_en,
+        'endorsements': proposal.endorsements,
+        'category': proposal.category.pk if proposal.category is not None else '',
+    }
+    return JsonResponse(response)
