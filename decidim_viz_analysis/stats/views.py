@@ -1,4 +1,6 @@
 import pickle
+import random
+
 import networkx as nx
 import networkx.algorithms.community as nxcom
 
@@ -194,19 +196,19 @@ def group_by_endorsements(request):
     counts = dict(Counter(total_list))
     list_response = []
     for key, value in counts.items():
-        list_response.append({'count': key, 'size': value})
-    list_response = sorted(list_response, key=lambda d: d['count'])
+        list_response.append({'comments': key, 'count': value})
+    list_response = sorted(list_response, key=lambda d: d['comments'])
     return JsonResponse({'histogram': list_response})
 
 
 def group_by_comments(request):
     response = Proposal.objects.values('id_proposal',).annotate(total=Count('comments'),)
     total_list = [e['total'] for e in response]
-    counts = Counter(total_list)
+    counts = dict(Counter(total_list))
     list_response = []
     for key, value in counts.items():
-        list_response.append({'count': key, 'size': value})
-    list_response = sorted(list_response, key=lambda d: d['count'])
+        list_response.append({'comments': key, 'count': value})
+    list_response = sorted(list_response, key=lambda d: d['comments'])
     return JsonResponse({'histogram': list_response})
 
 
