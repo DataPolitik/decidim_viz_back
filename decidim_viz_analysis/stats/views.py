@@ -1,5 +1,6 @@
 import pickle
 import random
+from datetime import datetime, date
 
 import networkx as nx
 import networkx.algorithms.community as nxcom
@@ -8,6 +9,7 @@ from math import sqrt
 from os.path import exists
 from collections import Counter
 from django.db.models import Count
+from django.db.models.functions import TruncDay, TruncMonth, TruncYear
 
 from django.http import HttpResponse, JsonResponse
 from stats.models import Proposal, User, Comment, Category
@@ -350,6 +352,106 @@ def get_most_endorsed_proposal(request):
     return JsonResponse(response)
 
 
-def getProposalHistogram(request, date_from, date_to):
-    proposals = Proposal.objects.values('published_at').annotate(c=Count('id_proposal'))
-    print(proposals)
+def get_daily_proposal_histogram(request, date_from, date_to):
+    datetime_from = datetime.strptime(date_from, '%Y-%m-%d')
+    datetime_to = datetime.strptime(date_to, '%Y-%m-%d')
+
+    proposals = Proposal.objects.filter(published_at__gt=datetime_from, published_at__lte=datetime_to).annotate(
+        date_truncated=TruncDay('published_at')
+    ).values('date_truncated').annotate(count=Count('date_truncated')).order_by('-date_truncated')
+
+    response = {
+        'history': [],
+        'count': len(proposals),
+        'name': 'proposals'
+                }
+
+    for proposal in proposals:
+        response['history'].append(
+            {
+                'key': proposal['date_truncated'].strftime("%d/%m/%Y"),
+                'value': proposal['count']
+            }
+        )
+    return JsonResponse(response)
+
+
+def get_cumulative_proposal_histogram(request, date_from, date_to):
+    datetime_from = datetime.strptime(date_from, '%Y-%m-%d')
+    datetime_to = datetime.strptime(date_to, '%Y-%m-%d')
+
+    proposals = Proposal.objects.filter(published_at__lte=datetime_to).annotate(
+        date_truncated=TruncDay('published_at')
+    ).values('date_truncated').annotate(count=Count('date_truncated')).order_by('date_truncated')
+
+    response = {
+        'history': [],
+        'count': len(proposals),
+        'name': 'proposals'
+                }
+
+    sum = 0
+    for proposal in proposals:
+        sum = sum + proposal['count']
+        if proposal['date_truncated'].timestamp() >= datetime_from.timestamp():
+            response['history'].append(
+                {
+                    'key': proposal['date_truncated'].strftime("%d/%m/%Y"),
+                    'value': sum
+                }
+            )
+    response['history'].reverse()
+    return JsonResponse(response)
+
+
+def get_daily_comments_histogram(request, date_from, date_to):
+    datetime_from = datetime.strptime(date_from, '%Y-%m-%d')
+    datetime_to = datetime.strptime(date_to, '%Y-%m-%d')
+
+    comments = Comment.objects.filter(created_at__gt=datetime_from, created_at__lte=datetime_to).annotate(
+        date_truncated=TruncDay('created_at')
+    ).values('date_truncated').annotate(count=Count('date_truncated')).order_by('-date_truncated')
+
+    response = {
+        'history': [],
+        'count': len(comments),
+        'name': 'proposals'
+                }
+
+    for comment in comments:
+        response['history'].append(
+            {
+                'key': comment['date_truncated'].strftime("%d/%m/%Y"),
+                'value': comment['count']
+            }
+        )
+    return JsonResponse(response)
+
+
+def get_cumulative_comment_histogram(request, date_from, date_to):
+    datetime_from = datetime.strptime(date_from, '%Y-%m-%d')
+    datetime_to = datetime.strptime(date_to, '%Y-%m-%d')
+
+    comments = Comment.objects.filter(created_at__lte=datetime_to).annotate(
+        date_truncated=TruncDay('created_at')
+    ).values('date_truncated').annotate(count=Count('date_truncated')).order_by('date_truncated')
+
+    response = {
+        'history': [],
+        'count': len(comments),
+        'name': 'comments'
+                }
+
+    sum = 0
+    for comment in comments:
+        sum = sum + comment['count']
+        if comment['date_truncated'].timestamp() >= datetime_from.timestamp():
+            response['history'].append(
+                {
+                    'key': comment['date_truncated'].strftime("%d/%m/%Y"),
+                    'value': sum
+                }
+            )
+    response['history'].reverse()
+    return JsonResponse(response)
+

@@ -1,4 +1,5 @@
 import csv
+from datetime import datetime
 
 from django.core.management.base import BaseCommand
 
@@ -21,6 +22,7 @@ class Command(BaseCommand):
                 commment_to_add.id_comment = row['id']
                 commment_to_add.depth = row['depth']
                 commment_to_add.language = row['locale']
+                commment_to_add.created_at = datetime.strptime(row['created_at'], '%Y-%m-%d %H:%M:%S %Z')
                 if not User.objects.filter(name=row['author/name']).exists():
                     user_to_add = User()
                     user_to_add.name = row['author/name']
