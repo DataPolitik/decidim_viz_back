@@ -348,3 +348,8 @@ def get_most_endorsed_proposal(request):
         'category': proposal.category.pk if proposal.category is not None else '',
     }
     return JsonResponse(response)
+
+
+def getProposalHistogram(request, date_from, date_to):
+    proposals = Proposal.objects.values('published_at').annotate(c=Count('id_proposal'))
+    print(proposals)

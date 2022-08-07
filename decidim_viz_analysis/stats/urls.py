@@ -1,7 +1,6 @@
 from django.urls import path
 
 from . import views
-
 urlpatterns = [
     path('', views.index, name='index'),
     path('comments/', views.comments, name='comments'),
@@ -10,6 +9,7 @@ urlpatterns = [
     path('proposals/comments/<int:limit>', views.get_proposals_by_comments, name='proposals_by_comments'),
     path('proposals/endorses/first', views.get_most_endorsed_proposal, name='top_endorsed_proposal'),
     path('proposals/comments/first', views.get_most_commented_proposal, name='top_commented_proposal'),
+    path('proposals/by_date/', views.getProposalHistogram, name='proposals by date'),
     path('categories/', views.get_categories, name='categories'),
     path('categories/proposals/<int:limit>', views.get_categories_by_proposals, name='categories_by_proposals'),
     path('categories/comments/', views.get_categories_by_comments, name='categories_by_comments'),
@@ -18,3 +18,4 @@ urlpatterns = [
     path('endorsements/histogram', views.group_by_endorsements, name='endorsements_histogram'),
     path('comments/histogram', views.group_by_comments, name='comments_histogram')
 ]
+

@@ -39,6 +39,7 @@ class Proposal(models.Model):
     proposal_title_es = models.CharField(max_length=255)
     proposal_title_en = models.CharField(max_length=255)
     proposal_title_fr = models.CharField(max_length=255)
+    published_at = models.DateTimeField(null=True)
     endorsements = models.IntegerField(null=False, default=0)
     category = models.ForeignKey(Category, on_delete=models.RESTRICT, null=True)
     users = models.ManyToManyField(User)
