@@ -24,6 +24,9 @@ class Command(BaseCommand):
                 proposal_to_add.proposal_title_es = row['title/machine_translations/es']
                 proposal_to_add.proposal_title_en = row['title/machine_translations/en']
                 proposal_to_add.proposal_title_fr = row['title/machine_translations/fr']
+                proposal_to_add.url = row['participatory_space/url']
+                proposal_to_add.latitude = row['latitude']
+                proposal_to_add.longitude = row['longitude']
                 proposal_to_add.published_at = datetime.strptime(row['published_at'], '%Y-%m-%d %H:%M:%S %Z')
                 proposal_to_add.endorsements = len(row['endorsements/user_endorsements'].split(','))
                 if row['category/id'] != '':
