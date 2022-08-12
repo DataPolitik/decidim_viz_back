@@ -376,6 +376,31 @@ def get_daily_proposal_histogram(request, date_from, date_to):
     return JsonResponse(response)
 
 
+def get_proposals_by_date(request, date_from, date_to):
+    datetime_from = datetime.strptime(date_from, '%Y-%m-%d')
+    datetime_to = datetime.strptime(date_to, '%Y-%m-%d')
+
+    proposals = Proposal.objects.filter(published_at__gt=datetime_from, published_at__lte=datetime_to)
+
+    response_list = []
+
+    for proposal in proposals:
+        response_list.append(
+            {
+                'id': proposal.id_proposal,
+                'title_es': proposal.proposal_title_es,
+                'title_fr': proposal.proposal_title_fr,
+                'title_en': proposal.proposal_title_en,
+                'url': proposal.url,
+                'latitude': proposal.latitude,
+                'longitude': proposal.longitude,
+                'endorsements': proposal.endorsements,
+                'category': proposal.category.pk if proposal.category is not None else '',
+            }
+        )
+    return JsonResponse(response_list, safe=False)
+
+
 def get_cumulative_proposal_histogram(request, date_from, date_to):
     datetime_from = datetime.strptime(date_from, '%Y-%m-%d')
     datetime_to = datetime.strptime(date_to, '%Y-%m-%d')

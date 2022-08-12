@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+
 urlpatterns = [
     path('', views.index, name='index'),
     path('comments/', views.comments, name='comments'),
@@ -10,6 +11,7 @@ urlpatterns = [
     path('proposals/endorses/first', views.get_most_endorsed_proposal, name='top_endorsed_proposal'),
     path('proposals/comments/first', views.get_most_commented_proposal, name='top_commented_proposal'),
     path('proposals/by_date/daily/<str:date_from>/<str:date_to>/', views.get_daily_proposal_histogram, name='proposals by date_daily'),
+    path('proposals/by_date/<str:date_from>/<str:date_to>/', views.get_proposals_by_date, name='proposals by date'),
     path('proposals/by_date/cumulative/<str:date_from>/<str:date_to>/', views.get_cumulative_proposal_histogram, name='proposals by date_accumulated'),
     path('comments/by_date/daily/<str:date_from>/<str:date_to>/', views.get_daily_comments_histogram, name='comments by date_accumulated'),
     path('comments/by_date/cumulative/<str:date_from>/<str:date_to>/', views.get_cumulative_comment_histogram, name='comments by date_accumulated'),
@@ -21,4 +23,3 @@ urlpatterns = [
     path('endorsements/histogram', views.group_by_endorsements, name='endorsements_histogram'),
     path('comments/histogram', views.group_by_comments, name='comments_histogram')
 ]
-
