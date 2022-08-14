@@ -21,6 +21,18 @@ def index(request):
     return HttpResponse("Hello, world. You're at the polls index.")
 
 
+def parse_proposal(proposal):
+    return {
+                'id': proposal.id_proposal,
+                'title_es': proposal.proposal_title_es,
+                'title_fr': proposal.proposal_title_fr,
+                'title_en': proposal.proposal_title_en,
+                'url': proposal.url,
+                'latitude': proposal.latitude,
+                'longitude': proposal.longitude
+            }
+
+
 def get_color(i, r_off=1, g_off=1, b_off=1):
     n = 26
     r = (n * (i + r_off) * 3) % 255
@@ -242,6 +254,14 @@ def get_proposals_by_supports(request, limit):
     return JsonResponse(response)
 
 
+def get_proposal(request, id_proposal):
+    if Proposal.objects.filter(id_proposal=id_proposal).exists():
+        proposal = Proposal.objects.get(id_proposal=id_proposal)
+        return JsonResponse(parse_proposal(proposal))
+    else:
+        return JsonResponse({}, status=404)
+
+
 def get_proposals_by_comments(request, limit):
     proposals = Proposal.objects.annotate(num_comments=Count('comment')).order_by('-num_comments')[0:limit]
     response = {'proposals': []}
@@ -426,6 +446,49 @@ def get_cumulative_proposal_histogram(request, date_from, date_to):
                 }
             )
     response['history'].reverse()
+    return JsonResponse(response)
+
+
+def get_daily_comments_histogram_per_proposal(request, id_proposal):
+
+    comments = Comment.objects.filter(proposal_replied__id_proposal=id_proposal).annotate(
+        date_truncated=TruncDay('created_at')
+    ).values('date_truncated').annotate(count=Count('date_truncated')).order_by('-date_truncated')
+
+    response = {
+        'history': [],
+        'count': len(comments),
+        'name': 'proposals'
+                }
+
+    for comment in comments:
+        response['history'].append(
+            {
+                'key': comment['date_truncated'].strftime("%d/%m/%Y"),
+                'value': comment['count']
+            }
+        )
+    return JsonResponse(response)
+
+
+def get_users_proposal(request, id_proposal):
+
+    users = User.objects.filter(comment__proposal_replied__id_proposal=id_proposal).annotate(count=Count('id')).order_by('-count')
+
+    response = {
+        'history': [],
+        'count': len(users),
+        'name': 'users_by_proposal'
+    }
+
+    for user in users:
+        response['history'].append(
+            {
+                'id': user.id,
+                'name': user.name,
+                'count': user.count
+            }
+        )
     return JsonResponse(response)
 
 
