@@ -8,6 +8,8 @@ import networkx.algorithms.community as nxcom
 from math import sqrt
 from os.path import exists
 from collections import Counter
+
+import numpy as np
 from django.db.models import Count
 from django.db.models.functions import TruncDay, TruncMonth, TruncYear
 
@@ -236,9 +238,20 @@ def get_comment_languages(request):
     return JsonResponse(language_list, safe=False)
 
 
+def __gini_coefficient(x):
+    """Compute Gini coefficient of array of values"""
+    diffsum = 0
+    x = np.array(x)
+    for i, xi in enumerate(x[:-1], 1):
+        diffsum += np.sum(np.abs(xi - x[i:]))
+    return diffsum / (len(x)**2 * np.mean(x))
+
+
 def get_proposals_by_supports(request, limit):
     proposals = Proposal.objects.order_by('-endorsements')[0:limit]
-    response = {'proposals': []}
+    response = {'proposals': [], 'gini': -1}
+
+    endorsements_values = []
 
     for proposal in proposals:
         response['proposals'].append(
@@ -251,6 +264,10 @@ def get_proposals_by_supports(request, limit):
                 'category': proposal.category.pk if proposal.category is not None else ''
             }
         )
+        endorsements_values.append(proposal.endorsements)
+
+    response['gini'] = __gini_coefficient(endorsements_values)
+
     return JsonResponse(response)
 
 
@@ -266,6 +283,8 @@ def get_proposals_by_comments(request, limit):
     proposals = Proposal.objects.annotate(num_comments=Count('comment')).order_by('-num_comments')[0:limit]
     response = {'proposals': []}
 
+    comments_values = []
+
     for proposal in proposals:
         response['proposals'].append(
             {
@@ -278,6 +297,10 @@ def get_proposals_by_comments(request, limit):
                 'comments': proposal.num_comments
             }
         )
+        comments_values.append(proposal.num_comments)
+
+    response['gini'] = __gini_coefficient(comments_values)
+
     return JsonResponse(response)
 
 
@@ -298,6 +321,7 @@ def get_categories(request):
 def get_categories_by_proposals(request, limit):
     categories = Category.objects.annotate(num_proposals=Count('proposal')).order_by('-num_proposals')[0:limit]
     response = {'categories': []}
+    categories_proposals = []
     for category in categories:
         response['categories'].append(
             {'id':category.pk,
@@ -307,6 +331,8 @@ def get_categories_by_proposals(request, limit):
              'categories': category.num_proposals
             }
         )
+        categories_proposals.append(category.num_proposals)
+    response['gini'] = __gini_coefficient(categories_proposals)
     return JsonResponse(response)
 
 
