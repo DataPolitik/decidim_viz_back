@@ -1,6 +1,6 @@
 import pickle
-import random
-from datetime import datetime, date
+from python_graphql_client import GraphqlClient
+from datetime import datetime
 
 import networkx as nx
 import networkx.algorithms.community as nxcom
@@ -338,13 +338,20 @@ def get_categories_by_proposals(request, limit):
 
 def get_temporal_limits(request):
     proposals = Proposal.objects.all().order_by('published_at')
+    comments = Comment.objects.all().order_by('created_at')
+
     first_proposal = proposals[0]
     last_proposal = proposals.reverse()[0]
 
-    print(first_proposal)
+    first_comment = comments[0]
+    last_comment = comments.reverse()[0]
+
+
     response = {
-        'from': first_proposal.published_at,
-        'to': last_proposal.published_at
+        'proposals_from': first_proposal.published_at,
+        'proposals_to': last_proposal.published_at,
+        'comments_from': first_comment.created_at,
+        'comments_to': last_comment.created_at
     }
     return JsonResponse(response)
 
