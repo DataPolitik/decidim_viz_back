@@ -336,9 +336,23 @@ def get_categories_by_proposals(request, limit):
     return JsonResponse(response)
 
 
+def get_temporal_limits(request):
+    proposals = Proposal.objects.all().order_by('published_at')
+    first_proposal = proposals[0]
+    last_proposal = proposals.reverse()[0]
+
+    print(first_proposal)
+    response = {
+        'from': first_proposal.published_at,
+        'to': last_proposal.published_at
+    }
+    return JsonResponse(response)
+
+
 def get_categories_by_comments(request):
     proposals = Proposal.objects.all().annotate(num_comments=Count('comment'))
     categories = {}
+    categories_comments = []
     for proposal in proposals:
         if proposal.category is not None:
             if proposal.category.pk in categories:
@@ -357,7 +371,9 @@ def get_categories_by_comments(request):
              'comments': category_count
             }
         )
+        categories_comments.append(category_count)
     response['categories'] = sorted(response['categories'], key=lambda d: d['comments'], reverse=True)
+    response['gini'] = __gini_coefficient(categories_comments)
     return JsonResponse(response)
 
 
