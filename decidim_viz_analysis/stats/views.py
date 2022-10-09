@@ -271,6 +271,29 @@ def get_proposals_by_supports(request, limit):
     return JsonResponse(response)
 
 
+def get_users_by_comments(request):
+    comments_per_users = Comment.objects.values('author')\
+        .annotate(total_comments=Count('author'))\
+        .order_by('-total_comments')
+    response = {'comments': [], 'gini': -1}
+    comments_values = []
+
+    for comment in comments_per_users:
+        author_name = User.objects.get(id=comment['author'])
+        response['comments'].append(
+            {
+                'id': comment['author'],
+                'name': str(author_name),
+                'total_comments': comment['total_comments'],
+            }
+        )
+        comments_values.append(comment['total_comments'])
+
+    response['gini'] = __gini_coefficient(comments_values)
+
+    return JsonResponse(response)
+
+
 def get_proposal(request, id_proposal):
     if Proposal.objects.filter(id_proposal=id_proposal).exists():
         proposal = Proposal.objects.get(id_proposal=id_proposal)
