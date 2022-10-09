@@ -271,10 +271,10 @@ def get_proposals_by_supports(request, limit):
     return JsonResponse(response)
 
 
-def get_users_by_comments(request):
+def get_users_by_comments(request, limit):
     comments_per_users = Comment.objects.values('author')\
         .annotate(total_comments=Count('author'))\
-        .order_by('-total_comments')
+        .order_by('-total_comments')[0:limit]
     response = {'comments': [], 'gini': -1}
     comments_values = []
 
@@ -284,7 +284,7 @@ def get_users_by_comments(request):
             {
                 'id': comment['author'],
                 'name': str(author_name),
-                'total_comments': comment['total_comments'],
+                'comments': comment['total_comments'],
             }
         )
         comments_values.append(comment['total_comments'])
