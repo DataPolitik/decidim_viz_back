@@ -10,6 +10,10 @@ After Python is installed, you will need to get all the requirements listed in t
 
 `pip install -r requirements.txt`
 
+## Configuration
+
+This project uses the Django Framework, so you maybe would like to take a look to the Django configuration file before proceeding to execute the project (https://docs.djangoproject.com/en/4.1/topics/settings/).
+
 ## Executing
 
 Run `python manage.py runserver` to run the back-end in your localhost.
