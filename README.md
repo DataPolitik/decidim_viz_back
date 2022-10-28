@@ -16,7 +16,7 @@ Run `python manage.py runserver` to run the back-end in your localhost.
 
 ## About the back-end application
 
-This back-end read the data from a database and then send it to other application by using a REST API. https://github.com/DataPolitik/decidim_viz_back is a front-end application written in Typescript + Angular that we are also developing.
+This back-end read the data from a database and then send it to other application by using a REST API. https://github.com/DataPolitik/decidim_viz_front is a front-end application written in Typescript + Angular that we are also developing.
 
 
 ## Can I contribute?
