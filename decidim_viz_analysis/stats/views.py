@@ -1,6 +1,8 @@
 import pickle
-from python_graphql_client import GraphqlClient
 from datetime import datetime
+
+import plotly
+import plotly.graph_objects as go
 
 import networkx as nx
 import networkx.algorithms.community as nxcom
@@ -62,24 +64,24 @@ def filter_nodes(G, minimum_degree= 2):
     G.remove_nodes_from(remove)
     return G
 
+
 def comments(request):
-    if exists("stats/cache/comments_all.pickle"):
+    if exists("stats/cache/comments_all.pickle") and False:
         with open('stats/cache/comments_all.pickle', 'rb') as handle:
-            response = pickle.load(handle)
+            responseHtml = pickle.load(handle)
     else:
         threshold = 0.5
-        set_of_proposals = set(Proposal.objects.values_list('id_proposal', flat=True)[:200])
-        list_of_users = User.objects.all()[:200]
-        G = nx.Graph()
+        set_of_proposals = set(Proposal.objects.values_list('id_proposal', flat=True)[:2900])
+        list_of_users = User.objects.all()[:1200]
+        G = nx.DiGraph()
         dict_users = dict()
         cache_proposals = dict()
         dict_names = dict()
-
         for user in list_of_users:
             dict_users[user.id] = dict()
             dict_names[user.id] = user.name
             cache_proposals[user.id] = set(Comment.objects.filter(author=user.id).values_list('proposal_replied_id', flat=True))
-            G.add_node(user.id)
+            # G.add_node(user.id)
 
         n = len(set_of_proposals)
 
@@ -95,7 +97,7 @@ def comments(request):
                 x0 = set_of_proposals.difference(x1)
                 y0 = set_of_proposals.difference(y1)
 
-                n11 = len(x1.intersection(y1))
+                n11 = len(x1.intersection(y1)) # intersection user a and b
                 n10 = len(x1.intersection(y0))
                 n01 = len(x0.intersection(y1))
 
@@ -114,36 +116,116 @@ def comments(request):
                     dict_users[user_a.id][user_b.id] = phi
                     dict_users[user_b.id][user_a.id] = phi
 
-                    G.add_edge(user_a.id, user_b.id)
-                    G[user_a.id][user_b.id]['phi'] = phi
+                    if (phi < -0.01 or phi > 0.01):
+                        G.add_node(user_a.id)
+                        G.add_node(user_b.id)
+                        G.add_edge(user_a.id, user_b.id)
+                        G[user_a.id][user_b.id]['phi'] = phi
+        G.remove_nodes_from(list(nx.isolates(G)))
+        outdeg = G.out_degree()
+        list_to_remove = [n[0] for n in outdeg if n[1] <= 1]
 
-
+        G.remove_nodes_from(list_to_remove)
         node_color, node_community, G = community_net(G)
         pos_ = nx.circular_layout(G)
-        response = {'users': dict_users,
-                    'positions': dict(),
-                    'usernames': dict_names,
-                    'colors': node_color
-                    }
+        responseHtml = generate_plotly_graph(G, pos_, dict_users)
 
-        for key, coordinates in pos_.items():
-            response['positions'][key] = list(coordinates)
-
+        script_header = '<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>'
+        responseHtml = script_header+responseHtml
         with open('stats/cache/comments_all.pickle', 'wb') as handle:
-            pickle.dump(response, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(responseHtml, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    return JsonResponse(response)
+    return HttpResponse(responseHtml, content_type="text/html")
+
+
+def generate_plotly_graph(G, positions, dict_users):
+
+    edge_x = []
+    edge_y = []
+
+    for edge in G.edges():
+        x0, y0 = positions[edge[0]]
+        x1, y1 = positions[edge[1]]
+        edge_x.append(x0)
+        edge_x.append(x1)
+        edge_x.append(None)
+        edge_y.append(y0)
+        edge_y.append(y1)
+        edge_y.append(None)
+
+    edge_trace = go.Scatter(
+        x=edge_x, y=edge_y,
+        line=dict(width=0.5, color='#888'),
+        hoverinfo='none',
+        mode='lines')
+
+    node_x = []
+    node_y = []
+    for node in G.nodes():
+        x, y = positions[node]
+        node_x.append(x)
+        node_y.append(y)
+
+    node_trace = go.Scatter(
+        x=node_x, y=node_y,
+        mode='markers',
+        hoverinfo='text',
+        marker=dict(
+            showscale=True,
+            # colorscale options
+            #'Greys' | 'YlGnBu' | 'Greens' | 'YlOrRd' | 'Bluered' | 'RdBu' |
+            #'Reds' | 'Blues' | 'Picnic' | 'Rainbow' | 'Portland' | 'Jet' |
+            #'Hot' | 'Blackbody' | 'Earth' | 'Electric' | 'Viridis' |
+            colorscale='YlGnBu',
+            reversescale=True,
+            color=[],
+            size=10,
+            colorbar=dict(
+                thickness=15,
+                title='Number of links',
+                xanchor='left',
+                titleside='right'
+            ),
+            line_width=2))
+
+    node_adjacencies = []
+    node_text = []
+    for node, adjacencies in enumerate(G.adjacency()):
+        node_adjacencies.append(len(adjacencies[1]))
+        node_text.append(str(node) + ' # of connections: '+str(len(adjacencies[1])))
+
+    node_trace.marker.color = node_adjacencies
+    node_trace.text = node_text
+
+    fig = go.Figure(data=[edge_trace, node_trace],
+                    layout=go.Layout(
+                        title='',
+                        titlefont_size=16,
+                        showlegend=False,
+                        hovermode='closest',
+                        margin=dict(b=20, l=5, r=5, t=40),
+                        annotations=[dict(
+                            text="",
+                            showarrow=False,
+                            xref="paper", yref="paper",
+                            x=0.005, y=-0.002)],
+                        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
+                    )
+
+
+    return plotly.offline.plot(fig, include_plotlyjs=False, output_type='div')
 
 
 def endorsements(request):
-    if exists("stats/cache/endorsement_all.pickle"):
+    if exists("stats/cache/endorsement_all.pickle") and False:
         with open('stats/cache/endorsement_all.pickle', 'rb') as handle:
-            response = pickle.load(handle)
+            responseHtml = pickle.load(handle)
     else:
         threshold = 0.5
-        set_of_proposals = set(Proposal.objects.values_list('id_proposal', flat=True)[:200])
-        list_of_users = User.objects.all()[:200]
-        G = nx.Graph()
+        set_of_proposals = set(Proposal.objects.values_list('id_proposal', flat=True)[:2900])
+        list_of_users = User.objects.all()[:1200]
+        G = nx.DiGraph()
         dict_users = dict()
         cache_proposals = dict()
         dict_names = dict()
@@ -151,7 +233,7 @@ def endorsements(request):
             dict_users[user.id] = dict()
             dict_names[user.id] = user.name
             cache_proposals[user.id] = set(user.proposal_set.values_list('id_proposal', flat=True))
-            G.add_node(user.id)
+            # G.add_node(user.id)
 
         n = len(set_of_proposals)
 
@@ -167,7 +249,7 @@ def endorsements(request):
                 x0 = set_of_proposals.difference(x1)
                 y0 = set_of_proposals.difference(y1)
 
-                n11 = len(x1.intersection(y1))
+                n11 = len(x1.intersection(y1)) # intersection user a and b
                 n10 = len(x1.intersection(y0))
                 n01 = len(x0.intersection(y1))
 
@@ -186,24 +268,26 @@ def endorsements(request):
                     dict_users[user_a.id][user_b.id] = phi
                     dict_users[user_b.id][user_a.id] = phi
 
-                    G.add_edge(user_a.id, user_b.id)
-                    G[user_a.id][user_b.id]['phi'] = phi
+                    if n11 > 0 and (phi < -0.01 or phi > 0.01):
+                        G.add_node(user_a.id)
+                        G.add_node(user_b.id)
+                        G.add_edge(user_a.id, user_b.id)
+                        G[user_a.id][user_b.id]['phi'] = phi
+        G.remove_nodes_from(list(nx.isolates(G)))
+        outdeg = G.out_degree()
+        list_to_remove = [n[0] for n in outdeg if n[1] <= 20]
 
+        G.remove_nodes_from(list_to_remove)
         node_color, node_community, G = community_net(G)
         pos_ = nx.circular_layout(G)
-        response = {'users': dict_users,
-                    'positions': dict(),
-                    'usernames': dict_names,
-                    'colors': node_color
-                    }
+        responseHtml = generate_plotly_graph(G, pos_, dict_users)
 
-        for key, coordinates in pos_.items():
-            response['positions'][key] = list(coordinates)
-
+        script_header = '<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>'
+        responseHtml = script_header+responseHtml
         with open('stats/cache/endorsement_all.pickle', 'wb') as handle:
-            pickle.dump(response, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(responseHtml, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    return JsonResponse(response)
+    return HttpResponse(responseHtml, content_type="text/html")
 
 
 def group_by_endorsements(request):

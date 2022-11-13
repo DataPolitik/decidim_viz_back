@@ -18,7 +18,7 @@ class Command(BaseCommand):
         output_path = options['output_path']
         threshold = 0.5
         set_of_proposals = set(Proposal.objects.values_list('id_proposal', flat=True))
-        list_of_users = User.objects.all()
+        list_of_users = User.objects.all()[:500]
         G = nx.Graph()
         dict_users = dict()
         cache_proposals = dict()
