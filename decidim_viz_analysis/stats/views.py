@@ -66,13 +66,13 @@ def filter_nodes(G, minimum_degree= 2):
 
 
 def comments(request):
-    if exists("stats/cache/comments_all.pickle") and False:
+    if exists("stats/cache/comments_all.pickle"):
         with open('stats/cache/comments_all.pickle', 'rb') as handle:
             responseHtml = pickle.load(handle)
     else:
         threshold = 0.5
-        set_of_proposals = set(Proposal.objects.values_list('id_proposal', flat=True)[:2900])
-        list_of_users = User.objects.all()[:1200]
+        set_of_proposals = set(Proposal.objects.values_list('id_proposal', flat=True)[:3500])
+        list_of_users = User.objects.all()[:1900]
         G = nx.DiGraph()
         dict_users = dict()
         cache_proposals = dict()
@@ -128,7 +128,7 @@ def comments(request):
         G.remove_nodes_from(list_to_remove)
         node_color, node_community, G = community_net(G)
         pos_ = nx.circular_layout(G)
-        responseHtml = generate_plotly_graph(G, pos_, dict_users)
+        responseHtml = generate_plotly_graph(G, pos_, dict_names)
 
         script_header = '<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>'
         responseHtml = script_header+responseHtml
@@ -138,7 +138,7 @@ def comments(request):
     return HttpResponse(responseHtml, content_type="text/html")
 
 
-def generate_plotly_graph(G, positions, dict_users):
+def generate_plotly_graph(G, positions, dict_names):
 
     edge_x = []
     edge_y = []
@@ -218,13 +218,13 @@ def generate_plotly_graph(G, positions, dict_users):
 
 
 def endorsements(request):
-    if exists("stats/cache/endorsement_all.pickle") and False:
+    if exists("stats/cache/endorsement_all.pickle"):
         with open('stats/cache/endorsement_all.pickle', 'rb') as handle:
             responseHtml = pickle.load(handle)
     else:
         threshold = 0.5
-        set_of_proposals = set(Proposal.objects.values_list('id_proposal', flat=True)[:2900])
-        list_of_users = User.objects.all()[:1200]
+        set_of_proposals = set(Proposal.objects.values_list('id_proposal', flat=True)[:3900])
+        list_of_users = User.objects.all()[:1900]
         G = nx.DiGraph()
         dict_users = dict()
         cache_proposals = dict()
@@ -280,7 +280,7 @@ def endorsements(request):
         G.remove_nodes_from(list_to_remove)
         node_color, node_community, G = community_net(G)
         pos_ = nx.circular_layout(G)
-        responseHtml = generate_plotly_graph(G, pos_, dict_users)
+        responseHtml = generate_plotly_graph(G, pos_, dict_names)
 
         script_header = '<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>'
         responseHtml = script_header+responseHtml
