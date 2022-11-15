@@ -15,7 +15,7 @@ import numpy as np
 from django.db.models import Count
 from django.db.models.functions import TruncDay, TruncMonth, TruncYear
 
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, HttpResponseNotFound
 from stats.models import Proposal, User, Comment, Category
 
 
@@ -698,4 +698,23 @@ def get_cumulative_comment_histogram(request, date_from, date_to):
             )
     response['history'].reverse()
     return JsonResponse(response)
+
+
+def download_data(request):
+    try:
+        print("hola")
+        with open("stats/data/futureu.europa.eu-open-data.zip", 'rb') as f:
+            file_data = f.read()
+            print("hola2")
+        # sending response
+        response = HttpResponse(file_data, content_type='application/zip')
+        response['Content-Disposition'] = 'attachment; filename="futureu.europa.eu-open-data.zip"'
+        print("hola3")
+
+    except IOError:
+        # handle file not exist case here
+        response = HttpResponseNotFound('<h1>File not exist</h1>')
+    print("hola4")
+    return response
+
 

@@ -26,5 +26,6 @@ urlpatterns = [
     path('languages/count/', views.get_num_comments_per_language, name='languages_count'),
     path('endorsements/histogram', views.group_by_endorsements, name='endorsements_histogram'),
     path('dates/', views.get_temporal_limits, name='dates'),
-    path('comments/histogram', views.group_by_comments, name='comments_histogram')
+    path('comments/histogram', views.group_by_comments, name='comments_histogram'),
+    path('data/', views.download_data, name='data')
 ]
