@@ -326,9 +326,20 @@ def __gini_coefficient(x):
     """Compute Gini coefficient of array of values"""
     diffsum = 0
     x = np.array(x)
+    den = len(x)**2 * np.mean(x)
+
     for i, xi in enumerate(x[:-1], 1):
         diffsum += np.sum(np.abs(xi - x[i:]))
-    return diffsum / (len(x)**2 * np.mean(x))
+
+    gini = diffsum / den
+    contributions = []
+    for i, xi in enumerate(x[:-1], 1):
+        sub_total = diffsum - np.sum(np.abs(xi - x[i:]))
+        partial_gini = sub_total / den
+        contribution = gini - partial_gini
+        contributions.append(contribution)
+    contributions.append(0)
+    return gini, contributions
 
 
 def get_proposals_by_supports(request, limit):
@@ -350,7 +361,8 @@ def get_proposals_by_supports(request, limit):
         )
         endorsements_values.append(proposal.endorsements)
 
-    response['gini'] = __gini_coefficient(endorsements_values)
+    gini_responses = __gini_coefficient(endorsements_values)
+    response['gini'] = {'value': gini_responses[0], 'contributions': gini_responses[1]}
 
     return JsonResponse(response)
 
@@ -373,7 +385,8 @@ def get_users_by_comments(request, limit):
         )
         comments_values.append(comment['total_comments'])
 
-    response['gini'] = __gini_coefficient(comments_values)
+    gini_responses = __gini_coefficient(comments_values)
+    response['gini'] = {'value': gini_responses[0], 'contributions': gini_responses[1]}
 
     return JsonResponse(response)
 
@@ -406,7 +419,8 @@ def get_proposals_by_comments(request, limit):
         )
         comments_values.append(proposal.num_comments)
 
-    response['gini'] = __gini_coefficient(comments_values)
+    gini_responses = __gini_coefficient(comments_values)
+    response['gini'] = {'value': gini_responses[0], 'contributions': gini_responses[1]}
 
     return JsonResponse(response)
 
@@ -439,7 +453,8 @@ def get_categories_by_proposals(request, limit):
             }
         )
         categories_proposals.append(category.num_proposals)
-    response['gini'] = __gini_coefficient(categories_proposals)
+    gini_responses = __gini_coefficient(categories_proposals)
+    response['gini'] = {'value': gini_responses[0], 'contributions': gini_responses[1]}
     return JsonResponse(response)
 
 
@@ -487,7 +502,8 @@ def get_categories_by_comments(request):
         )
         categories_comments.append(category_count)
     response['categories'] = sorted(response['categories'], key=lambda d: d['comments'], reverse=True)
-    response['gini'] = __gini_coefficient(categories_comments)
+    gini_responses = __gini_coefficient(categories_comments)
+    response['gini'] = {'value': gini_responses[0], 'contributions': gini_responses[1]}
     return JsonResponse(response)
 
 
@@ -700,9 +716,15 @@ def get_cumulative_comment_histogram(request, date_from, date_to):
     return JsonResponse(response)
 
 
+def comments_per_user(request):
+    comments = Comment.objects.values('author').annotate(total_per_author=Count('author')).order_by()
+
+    for comment in comments:
+        print(comment)
+
+
 def download_data(request):
     try:
-        print("hola")
         with open("stats/data/futureu.europa.eu-open-data.zip", 'rb') as f:
             file_data = f.read()
             print("hola2")
