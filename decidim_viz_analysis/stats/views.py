@@ -1,5 +1,6 @@
 import pickle
 from datetime import datetime
+from random import random, shuffle, choice
 
 import plotly
 import plotly.graph_objects as go
@@ -71,8 +72,8 @@ def comments(request):
             responseHtml = pickle.load(handle)
     else:
         threshold = 0.5
-        set_of_proposals = set(Proposal.objects.values_list('id_proposal', flat=True)[:3500])
-        list_of_users = User.objects.all()[:1900]
+        set_of_proposals = set(Proposal.objects.values_list('id_proposal', flat=True)[:1000])
+        list_of_users = User.objects.all()[:800]
         G = nx.DiGraph()
         dict_users = dict()
         cache_proposals = dict()
@@ -93,30 +94,20 @@ def comments(request):
                     continue
 
                 y1 = cache_proposals[user_b.id]
+                print(x1, y1)
 
                 x0 = set_of_proposals.difference(x1)
                 y0 = set_of_proposals.difference(y1)
 
-                n11 = len(x1.intersection(y1)) # intersection user a and b
-                n10 = len(x1.intersection(y0))
-                n01 = len(x0.intersection(y1))
+                phi, t = compute_phi(x0, x1, y0, y1, n)
+                n11 = len(x1.intersection(y1))
 
-                n_1 = n11 + n01
-                n1_ = n11 + n10
-
-                den_product = (n1_ * n_1 * (n - n1_)*(n-n_1))
-                den_product = den_product if den_product > 0 else 1
-
-                phi = (n * n11 - n1_*n_1) / sqrt(den_product)
-
-                t = 1 + (phi * sqrt(n-2)) / 1 + (sqrt(1 - phi * phi))
-
-                if t > threshold or t < threshold:
+                if t > threshold:
                     count_relations = count_relations + 1
                     dict_users[user_a.id][user_b.id] = phi
                     dict_users[user_b.id][user_a.id] = phi
 
-                    if (phi < -0.01 or phi > 0.01):
+                    if phi > 0:
                         G.add_node(user_a.id)
                         G.add_node(user_b.id)
                         G.add_edge(user_a.id, user_b.id)
@@ -127,8 +118,10 @@ def comments(request):
 
         G.remove_nodes_from(list_to_remove)
         node_color, node_community, G = community_net(G)
+        print(node_community)
         pos_ = nx.circular_layout(G)
-        responseHtml = generate_plotly_graph(G, pos_, dict_names)
+        responseHtml = generate_plotly_graph(G, pos_, dict_names,node_color)
+        nx.write_gexf(G,'stats/cache/comments.gexf')
 
         script_header = '<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>'
         responseHtml = script_header+responseHtml
@@ -138,7 +131,7 @@ def comments(request):
     return HttpResponse(responseHtml, content_type="text/html")
 
 
-def generate_plotly_graph(G, positions, dict_names):
+def generate_plotly_graph(G, positions, dict_names, node_color):
 
     edge_x = []
     edge_y = []
@@ -155,33 +148,28 @@ def generate_plotly_graph(G, positions, dict_names):
 
     edge_trace = go.Scatter(
         x=edge_x, y=edge_y,
-        line=dict(width=0.5, color='#888'),
+        line=dict(width=1.5, color='#888'),
         hoverinfo='none',
         mode='lines')
 
     node_x = []
     node_y = []
+    color = []
     for node in G.nodes():
         x, y = positions[node]
         node_x.append(x)
         node_y.append(y)
+        color.append(node_color[node])
 
     node_trace = go.Scatter(
         x=node_x, y=node_y,
         mode='markers',
         hoverinfo='text',
         marker=dict(
-            showscale=True,
-            # colorscale options
-            #'Greys' | 'YlGnBu' | 'Greens' | 'YlOrRd' | 'Bluered' | 'RdBu' |
-            #'Reds' | 'Blues' | 'Picnic' | 'Rainbow' | 'Portland' | 'Jet' |
-            #'Hot' | 'Blackbody' | 'Earth' | 'Electric' | 'Viridis' |
-            colorscale='YlGnBu',
-            reversescale=True,
+            showscale=False,
             color=[],
             size=10,
             colorbar=dict(
-                thickness=15,
                 title='Number of links',
                 xanchor='left',
                 titleside='right'
@@ -192,7 +180,7 @@ def generate_plotly_graph(G, positions, dict_names):
     node_text = []
     for node, adjacencies in enumerate(G.adjacency()):
         node_adjacencies.append(len(adjacencies[1]))
-        node_text.append(str(node) + ' # of connections: '+str(len(adjacencies[1])))
+        node_text.append(str(node))
 
     node_trace.marker.color = node_adjacencies
     node_trace.text = node_text
@@ -217,75 +205,77 @@ def generate_plotly_graph(G, positions, dict_names):
     return plotly.offline.plot(fig, include_plotlyjs=False, output_type='div')
 
 
+def compute_phi(x0,x1,y0,y1,n):
+
+    n11 = len(x1.intersection(y1))  # intersection user a and b
+    n10 = len(x1.intersection(y0))
+    n01 = len(x0.intersection(y1))
+
+    n_1 = n11 + n01
+    n1_ = n11 + n10
+
+    den_product = (n1_ * n_1 * (n - n1_) * (n - n_1))
+    den_product = den_product if den_product > 0 else 1
+
+    phi = (n * n11 - n1_ * n_1) / sqrt(den_product)
+    t = 1 + (phi * sqrt(n - 2)) / 1 + (sqrt(1 - phi * phi))
+
+    return phi,t
+
+
 def endorsements(request):
     if exists("stats/cache/endorsement_all.pickle"):
         with open('stats/cache/endorsement_all.pickle', 'rb') as handle:
             responseHtml = pickle.load(handle)
     else:
-        threshold = 0.5
-        set_of_proposals = set(Proposal.objects.values_list('id_proposal', flat=True)[:3900])
-        list_of_users = User.objects.all()[:1900]
         G = nx.DiGraph()
-        dict_users = dict()
-        cache_proposals = dict()
-        dict_names = dict()
-        for user in list_of_users:
-            dict_users[user.id] = dict()
-            dict_names[user.id] = user.name
-            cache_proposals[user.id] = set(user.proposal_set.values_list('id_proposal', flat=True))
-            # G.add_node(user.id)
+        threshold = 0
+        set_of_proposals = set(Proposal.objects.all()[:1900])
+        user_set = set()
+        endorsed_proposals = dict()
+
+        for proposal in set_of_proposals:
+            endorsement_list = proposal.users.all()
+            for endorse in endorsement_list:
+                user_set.add(endorse)
+                if endorse in endorsed_proposals:
+                    endorsed_proposals[endorse].add(proposal)
+                else:
+                    endorsed_proposals[endorse] = set()
+                    endorsed_proposals[endorse].add(proposal)
 
         n = len(set_of_proposals)
 
-        count_relations = 0
-        for user_a in list_of_users:
-            x1 = cache_proposals[user_a.id]
-            for user_b in list_of_users:
-                if user_a == user_b:
-                    continue
+        user_set = list(user_set)[:400]
+        for index_user, user_a in enumerate(user_set):
+            for user_b in user_set:
+                if user_a != user_b:
+                    x1 = endorsed_proposals[user_a]
+                    y1 = endorsed_proposals[user_b]
 
-                y1 = cache_proposals[user_b.id]
+                    x0 = set_of_proposals.difference(x1)
+                    y0 = set_of_proposals.difference(y1)
 
-                x0 = set_of_proposals.difference(x1)
-                y0 = set_of_proposals.difference(y1)
+                    phi, t = compute_phi(x0, x1, y0, y1, n)
 
-                n11 = len(x1.intersection(y1)) # intersection user a and b
-                n10 = len(x1.intersection(y0))
-                n01 = len(x0.intersection(y1))
+                    if t > threshold and phi > 0:
+                        G.add_node(user_a.name)
+                        G.add_node(user_b.name)
+                        G.add_edge(user_a.name, user_b.name)
+                        G.add_edge(user_b.name, user_a.name)
+                        G[user_a.name][user_b.name]['phi'] = phi
+                        G[user_b.name][user_a.name]['phi'] = phi
 
-                n_1 = n11 + n01
-                n1_ = n11 + n10
-
-                den_product = (n1_ * n_1 * (n - n1_)*(n-n_1))
-                den_product = den_product if den_product > 0 else 1
-
-                phi = (n * n11 - n1_*n_1) / sqrt(den_product)
-
-                t = 1 + (phi * sqrt(n-2)) / 1 + (sqrt(1 - phi * phi))
-
-                if t > threshold or t < threshold:
-                    count_relations = count_relations + 1
-                    dict_users[user_a.id][user_b.id] = phi
-                    dict_users[user_b.id][user_a.id] = phi
-
-                    if n11 > 0 and (phi < -0.01 or phi > 0.01):
-                        G.add_node(user_a.id)
-                        G.add_node(user_b.id)
-                        G.add_edge(user_a.id, user_b.id)
-                        G[user_a.id][user_b.id]['phi'] = phi
-        G.remove_nodes_from(list(nx.isolates(G)))
-        outdeg = G.out_degree()
-        list_to_remove = [n[0] for n in outdeg if n[1] <= 20]
-
-        G.remove_nodes_from(list_to_remove)
         node_color, node_community, G = community_net(G)
         pos_ = nx.circular_layout(G)
-        responseHtml = generate_plotly_graph(G, pos_, dict_names)
-
+        nx.write_gexf(G, 'stats/cache/endorsement.gexf')
+        responseHtml = generate_plotly_graph(G, pos_, None, node_color)
         script_header = '<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>'
-        responseHtml = script_header+responseHtml
+        responseHtml = script_header + responseHtml
         with open('stats/cache/endorsement_all.pickle', 'wb') as handle:
             pickle.dump(responseHtml, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        with open("stats/cache/endorsement_html.html", "w") as file:
+            file.write(responseHtml)
 
     return HttpResponse(responseHtml, content_type="text/html")
 
@@ -727,16 +717,13 @@ def download_data(request):
     try:
         with open("stats/data/futureu.europa.eu-open-data.zip", 'rb') as f:
             file_data = f.read()
-            print("hola2")
         # sending response
         response = HttpResponse(file_data, content_type='application/zip')
         response['Content-Disposition'] = 'attachment; filename="futureu.europa.eu-open-data.zip"'
-        print("hola3")
 
     except IOError:
         # handle file not exist case here
         response = HttpResponseNotFound('<h1>File not exist</h1>')
-    print("hola4")
     return response
 
 

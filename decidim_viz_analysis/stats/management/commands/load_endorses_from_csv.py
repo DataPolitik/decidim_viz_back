@@ -14,10 +14,11 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         csv_path = options['csv_path']
-
+        user_list = []
         with open(csv_path, 'r', encoding='utf-8') as file:
             reader = csv.DictReader(file, delimiter=';')
 
+            User.objects.all().delete()
             for row in reader:
                 proposal_to_add = Proposal()
                 proposal_to_add.id_proposal = row['id']
@@ -40,15 +41,20 @@ class Command(BaseCommand):
                         proposal_to_add.category = category_to_add
                 proposal_to_add.save()
 
+
                 users = row['endorsements/user_endorsements'].split(',')
                 for user in users:
                     user_trimmed = user.strip()
+                    user_list.append(user_trimmed)
+
                     if len(user_trimmed) > 0:
                         if not User.objects.filter(name=user_trimmed).exists():
                             user_to_add = User()
                             user_to_add.name = user_trimmed
                             user_to_add.save()
-                            proposal_to_add.users.add(user_to_add)
+                        proposal_to_add.users.add(user_to_add)
+
+                proposal_to_add.save()
 
         self.stdout.write('There are {} proposals!'.format(Proposal.objects.count()))
         self.stdout.write('There are {} users!'.format(User.objects.count()))
