@@ -70,65 +70,13 @@ def comments(request):
     if exists("stats/cache/comments_all.pickle"):
         with open('stats/cache/comments_all.pickle', 'rb') as handle:
             responseHtml = pickle.load(handle)
-    else:
-        threshold = 0.5
-        set_of_proposals = set(Proposal.objects.values_list('id_proposal', flat=True)[:1000])
-        list_of_users = User.objects.all()[:800]
-        G = nx.DiGraph()
-        dict_users = dict()
-        cache_proposals = dict()
-        dict_names = dict()
-        for user in list_of_users:
-            dict_users[user.id] = dict()
-            dict_names[user.id] = user.name
-            cache_proposals[user.id] = set(Comment.objects.filter(author=user.id).values_list('proposal_replied_id', flat=True))
-            # G.add_node(user.id)
-
-        n = len(set_of_proposals)
-
-        count_relations = 0
-        for user_a in list_of_users:
-            x1 = cache_proposals[user_a.id]
-            for user_b in list_of_users:
-                if user_a == user_b:
-                    continue
-
-                y1 = cache_proposals[user_b.id]
-                print(x1, y1)
-
-                x0 = set_of_proposals.difference(x1)
-                y0 = set_of_proposals.difference(y1)
-
-                phi, t = compute_phi(x0, x1, y0, y1, n)
-                n11 = len(x1.intersection(y1))
-
-                if t > threshold:
-                    count_relations = count_relations + 1
-                    dict_users[user_a.id][user_b.id] = phi
-                    dict_users[user_b.id][user_a.id] = phi
-
-                    if phi > 0:
-                        G.add_node(user_a.id)
-                        G.add_node(user_b.id)
-                        G.add_edge(user_a.id, user_b.id)
-                        G[user_a.id][user_b.id]['phi'] = phi
-        G.remove_nodes_from(list(nx.isolates(G)))
-        outdeg = G.out_degree()
-        list_to_remove = [n[0] for n in outdeg if n[1] <= 1]
-
-        G.remove_nodes_from(list_to_remove)
-        node_color, node_community, G = community_net(G)
-        print(node_community)
-        pos_ = nx.circular_layout(G)
-        responseHtml = generate_plotly_graph(G, pos_, dict_names,node_color)
-        nx.write_gexf(G,'stats/cache/comments.gexf')
-
-        script_header = '<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>'
-        responseHtml = script_header+responseHtml
-        with open('stats/cache/comments_all.pickle', 'wb') as handle:
-            pickle.dump(responseHtml, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
     return HttpResponse(responseHtml, content_type="text/html")
+
+
+def get_comments_node_colors(request):
+    with open('stats/cache/comment_node_colors.pickle', 'rb') as file:
+        community_dict = pickle.load(file)
+        return JsonResponse(community_dict)
 
 
 def generate_plotly_graph(G, positions, dict_names, node_color):
@@ -227,57 +175,13 @@ def endorsements(request):
     if exists("stats/cache/endorsement_all.pickle"):
         with open('stats/cache/endorsement_all.pickle', 'rb') as handle:
             responseHtml = pickle.load(handle)
-    else:
-        G = nx.DiGraph()
-        threshold = 0
-        set_of_proposals = set(Proposal.objects.all()[:1900])
-        user_set = set()
-        endorsed_proposals = dict()
-
-        for proposal in set_of_proposals:
-            endorsement_list = proposal.users.all()
-            for endorse in endorsement_list:
-                user_set.add(endorse)
-                if endorse in endorsed_proposals:
-                    endorsed_proposals[endorse].add(proposal)
-                else:
-                    endorsed_proposals[endorse] = set()
-                    endorsed_proposals[endorse].add(proposal)
-
-        n = len(set_of_proposals)
-
-        user_set = list(user_set)[:400]
-        for index_user, user_a in enumerate(user_set):
-            for user_b in user_set:
-                if user_a != user_b:
-                    x1 = endorsed_proposals[user_a]
-                    y1 = endorsed_proposals[user_b]
-
-                    x0 = set_of_proposals.difference(x1)
-                    y0 = set_of_proposals.difference(y1)
-
-                    phi, t = compute_phi(x0, x1, y0, y1, n)
-
-                    if t > threshold and phi > 0:
-                        G.add_node(user_a.name)
-                        G.add_node(user_b.name)
-                        G.add_edge(user_a.name, user_b.name)
-                        G.add_edge(user_b.name, user_a.name)
-                        G[user_a.name][user_b.name]['phi'] = phi
-                        G[user_b.name][user_a.name]['phi'] = phi
-
-        node_color, node_community, G = community_net(G)
-        pos_ = nx.circular_layout(G)
-        nx.write_gexf(G, 'stats/cache/endorsement.gexf')
-        responseHtml = generate_plotly_graph(G, pos_, None, node_color)
-        script_header = '<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>'
-        responseHtml = script_header + responseHtml
-        with open('stats/cache/endorsement_all.pickle', 'wb') as handle:
-            pickle.dump(responseHtml, handle, protocol=pickle.HIGHEST_PROTOCOL)
-        with open("stats/cache/endorsement_html.html", "w") as file:
-            file.write(responseHtml)
-
     return HttpResponse(responseHtml, content_type="text/html")
+
+
+def get_endorsement_node_colors(request):
+    with open('stats/cache/endorsement_node_colors.pickle', 'rb') as file:
+        community_dict = pickle.load(file)
+        return JsonResponse(community_dict)
 
 
 def group_by_endorsements(request):

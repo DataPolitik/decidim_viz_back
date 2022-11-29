@@ -5,7 +5,9 @@ from . import views
 urlpatterns = [
     path('', views.index, name='index'),
     path('comments/', views.comments, name='comments'),
+    path('comments/colors', views.get_comments_node_colors, name='comments_colors'),
     path('endorsements/', views.endorsements, name='endorsements'),
+    path('endorsements/colors', views.get_endorsement_node_colors, name='endorsements_colors'),
     path('users/by_proposal/<str:id_proposal>/', views.get_users_proposal, name='users_by_proposal'),
     path('users/by_comments/<int:limit>', views.get_users_by_comments, name='users_by_comments'),
     path('proposals/supports/<int:limit>', views.get_proposals_by_supports, name='proposals_by_supports'),
