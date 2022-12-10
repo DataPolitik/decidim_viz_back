@@ -19,8 +19,19 @@ from django.db.models.functions import TruncDay, TruncMonth, TruncYear
 from django.http import HttpResponse, JsonResponse, HttpResponseNotFound
 from stats.models import Proposal, User, Comment, Category
 
+STATS_FOLDER = "stats/cache/"
 
 
+def load_pickle_file(filename):
+    if exists(STATS_FOLDER + filename):
+        with open(STATS_FOLDER + filename, 'rb') as handle:
+            return pickle.load(handle)
+    return None
+
+
+def save_pickle_file(object_to_save, filename):
+    with open(STATS_FOLDER + filename, 'wb') as handle:
+        pickle.dump(object_to_save, handle)
 
 def index(request):
     return HttpResponse("Hello, world. You're at the polls index.")
@@ -67,14 +78,14 @@ def filter_nodes(G, minimum_degree= 2):
 
 
 def comments(request):
-    if exists("stats/cache/comments_all.pickle"):
-        with open('stats/cache/comments_all.pickle', 'rb') as handle:
+    if exists(STATS_FOLDER + "comments_all.pickle"):
+        with open(STATS_FOLDER + 'comments_all.pickle', 'rb') as handle:
             responseHtml = pickle.load(handle)
     return HttpResponse(responseHtml, content_type="text/html")
 
 
 def get_comments_node_colors(request):
-    with open('stats/cache/comment_node_colors.pickle', 'rb') as file:
+    with open(STATS_FOLDER + 'comment_node_colors.pickle', 'rb') as file:
         community_dict = pickle.load(file)
         return JsonResponse(community_dict)
 
@@ -172,8 +183,8 @@ def compute_phi(x0,x1,y0,y1,n):
 
 
 def endorsements(request):
-    if exists("stats/cache/endorsement_all.pickle"):
-        with open('stats/cache/endorsement_all.pickle', 'rb') as handle:
+    if exists(STATS_FOLDER + "endorsement_all.pickle"):
+        with open(STATS_FOLDER + 'endorsement_all.pickle', 'rb') as handle:
             responseHtml = pickle.load(handle)
     return HttpResponse(responseHtml, content_type="text/html")
 
@@ -185,6 +196,10 @@ def get_endorsement_node_colors(request):
 
 
 def group_by_endorsements(request):
+    pickle_filename = "group_by_endorsements.pickle"
+    list_response = load_pickle_file(pickle_filename)
+    if list_response is not None:
+        return JsonResponse({'histogram': list_response})
     response = Proposal.objects.values('id_proposal',).annotate(total=Count('users'),)
     total_list = [e['total'] for e in response]
     counts = dict(Counter(total_list))
@@ -192,10 +207,15 @@ def group_by_endorsements(request):
     for key, value in counts.items():
         list_response.append({'comments': key, 'count': value})
     list_response = sorted(list_response, key=lambda d: d['comments'])
+    save_pickle_file(list_response, pickle_filename)
     return JsonResponse({'histogram': list_response})
 
 
 def group_by_comments(request):
+    pickle_filename = "group_by_comments.pickle"
+    list_response = load_pickle_file(pickle_filename)
+    if list_response is not None:
+        return JsonResponse({'histogram': list_response})
     response = Proposal.objects.values('id_proposal',).annotate(total=Count('comments'),)
     total_list = [e['total'] for e in response]
     counts = dict(Counter(total_list))
@@ -203,6 +223,7 @@ def group_by_comments(request):
     for key, value in counts.items():
         list_response.append({'comments': key, 'count': value})
     list_response = sorted(list_response, key=lambda d: d['comments'])
+    save_pickle_file(list_response, pickle_filename)
     return JsonResponse({'histogram': list_response})
 
 
@@ -212,7 +233,12 @@ def _list_of_languages():
 
 
 def get_comment_languages(request):
+    pickle_filename = "comment_languages.pickle"
+    language_list = load_pickle_file(pickle_filename)
+    if language_list is not None:
+        return JsonResponse(language_list, safe=False)
     language_list = _list_of_languages()
+    save_pickle_file(language_list, pickle_filename)
     return JsonResponse(language_list, safe=False)
 
 
@@ -237,6 +263,11 @@ def __gini_coefficient(x):
 
 
 def get_proposals_by_supports(request, limit):
+    pickle_filename = "get_proposals_by_supports.pickle"
+    response = load_pickle_file(pickle_filename)
+    if response is not None:
+        return JsonResponse(response)
+
     proposals = Proposal.objects.order_by('-endorsements')[0:limit]
     response = {'proposals': [], 'gini': -1}
 
@@ -257,11 +288,16 @@ def get_proposals_by_supports(request, limit):
 
     gini_responses = __gini_coefficient(endorsements_values)
     response['gini'] = {'value': gini_responses[0], 'contributions': gini_responses[1]}
-
+    save_pickle_file(response, pickle_filename)
     return JsonResponse(response)
 
 
 def get_users_by_comments(request, limit):
+    pickle_filename = "get_users_by_comments.pickle"
+    response = load_pickle_file(pickle_filename)
+    if response is not None:
+        return JsonResponse(response)
+
     comments_per_users = Comment.objects.values('author')\
         .annotate(total_comments=Count('author'))\
         .order_by('-total_comments')[0:limit]
@@ -281,7 +317,7 @@ def get_users_by_comments(request, limit):
 
     gini_responses = __gini_coefficient(comments_values)
     response['gini'] = {'value': gini_responses[0], 'contributions': gini_responses[1]}
-
+    save_pickle_file(response, pickle_filename)
     return JsonResponse(response)
 
 
@@ -294,6 +330,11 @@ def get_proposal(request, id_proposal):
 
 
 def get_proposals_by_comments(request, limit):
+    pickle_filename = "get_users_by_comments.pickle"
+    response = load_pickle_file(pickle_filename)
+    if response is not None:
+        return JsonResponse(response)
+
     proposals = Proposal.objects.annotate(num_comments=Count('comment')).order_by('-num_comments')[0:limit]
     response = {'proposals': []}
 
@@ -315,11 +356,16 @@ def get_proposals_by_comments(request, limit):
 
     gini_responses = __gini_coefficient(comments_values)
     response['gini'] = {'value': gini_responses[0], 'contributions': gini_responses[1]}
-
+    save_pickle_file(response, pickle_filename)
     return JsonResponse(response)
 
 
 def get_categories(request):
+    pickle_filename = "get_categories.pickle"
+    response = load_pickle_file(pickle_filename)
+    if response is not None:
+        return JsonResponse(response)
+
     categories = Category.objects.all()
     response = {'categories': []}
     for category in categories:
@@ -330,6 +376,7 @@ def get_categories(request):
              'name_en': category.name_en,
             }
         )
+    save_pickle_file(response, pickle_filename)
     return JsonResponse(response)
 
 
@@ -373,6 +420,11 @@ def get_temporal_limits(request):
 
 
 def get_categories_by_comments(request):
+    pickle_filename = "get_categories_by_comments.pickle"
+    response = load_pickle_file(pickle_filename)
+    if response is not None:
+        return JsonResponse(response)
+
     proposals = Proposal.objects.all().annotate(num_comments=Count('comment'))
     categories = {}
     categories_comments = []
@@ -398,6 +450,7 @@ def get_categories_by_comments(request):
     response['categories'] = sorted(response['categories'], key=lambda d: d['comments'], reverse=True)
     gini_responses = __gini_coefficient(categories_comments)
     response['gini'] = {'value': gini_responses[0], 'contributions': gini_responses[1]}
+    save_pickle_file(response, pickle_filename)
     return JsonResponse(response)
 
 
@@ -538,6 +591,10 @@ def get_daily_comments_histogram_per_proposal(request, id_proposal):
 
 
 def get_users_proposal(request, id_proposal):
+    pickle_filename = "get_users_proposal.pickle"
+    response = load_pickle_file(pickle_filename)
+    if response is not None:
+        return JsonResponse(response)
 
     users = User.objects.filter(comment__proposal_replied__id_proposal=id_proposal).annotate(count=Count('id')).order_by('-count')
 
@@ -555,6 +612,7 @@ def get_users_proposal(request, id_proposal):
                 'count': user.count
             }
         )
+    save_pickle_file(response, pickle_filename)
     return JsonResponse(response)
 
 
