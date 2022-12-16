@@ -34,11 +34,17 @@ def compute_phi(x0,x1,y0,y1,n):
 
 
 def get_color(i, r_off=1, g_off=1, b_off=1):
-    n = 26
-    r = (n * (i + r_off) * 3) % 255
-    g = (n * (i + r_off) * 5) % 255
-    b = (n * (i + r_off) * 7) % 255
-    return (r, g, b)
+    r0, g0, b0 = 0, 0, 0
+    n = 16
+    low, high = 0.1, 0.9
+    span = high - low
+    r = low + span * (((i + r_off) * 9) % n) / (n - 1)
+    g = low + span * (((i + g_off) * 14) % n) / (n - 1)
+    b = low + span * (((i + b_off) * 20) % n) / (n - 1)
+    r = int(r * 255)
+    g = int(r * 255)
+    b = int(r * 255)
+    return '#%02x%02x%02x' % (r, g, b)
 
 
 def community_net(G_in):
@@ -47,9 +53,10 @@ def community_net(G_in):
     node_community = {}
     communities = nxcom.greedy_modularity_communities(G_in)
     for i, com in enumerate(communities):
+        community_color = get_color(i)
         for v in com:
             G_out.add_node(v)
-            node_color[v] = get_color(i)
+            node_color[v] = community_color
             node_community[v] = i
     G_out.add_edges_from(G_in.edges())
     return node_color, node_community, G_out
@@ -214,12 +221,14 @@ class Command(BaseCommand):
 
         total_users = 0
         for user, color in node_color.items():
-            color_hex = '#%02x%02x%02x' % color
+            color_hex = color
             community_dict['colors']['users'][color_hex].append(user)
             proposals_by_user = cache_proposals[user]
             community_proposals_dict[color_hex].extend(proposals_by_user)
             total_users = total_users + 1
         community_dict['total'] = total_users
+        sorted_items = sorted(community_dict['colors']['users'].items(), key=lambda item: len(item[1]))
+        community_dict['colors']['users'] = dict(sorted_items[-2:])
 
         for color, proposals in community_proposals_dict.items():
             proposals_titles = [get_proposal_title(x) for x in proposals]

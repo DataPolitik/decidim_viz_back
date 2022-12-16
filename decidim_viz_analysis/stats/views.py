@@ -456,9 +456,11 @@ def get_categories_by_comments(request):
 
 def get_num_comments_per_language(request):
     language_list = _list_of_languages()
+    total_comments = Comment.objects.count()
     response = {'languages': []}
     for lang in language_list:
-        response['languages'].append({'language': lang, 'count': Comment.objects.filter(language=lang).count()})
+        response['languages'].append({'language': lang,
+                                      'count': (Comment.objects.filter(language=lang).count() / total_comments) * 100})
     response['languages'] = sorted(response['languages'], key=lambda d: d['count'], reverse=True)
 
     return JsonResponse(response)
