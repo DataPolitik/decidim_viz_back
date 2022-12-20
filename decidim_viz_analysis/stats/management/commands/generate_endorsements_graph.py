@@ -100,7 +100,6 @@ def generate_plotly_graph(G, positions, node_color):
         node_adjacencies.append(len(adjacencies[1]))
         node_text.append(str(node))
 
-    node_trace.marker.color = node_adjacencies
     node_trace.text = node_text
 
     fig = go.Figure(data=[edge_trace, node_trace],
@@ -216,8 +215,6 @@ class Command(BaseCommand):
             community_proposals_dict[color_hex].extend(proposals_by_user)
             total_users = total_users + 1
         community_dict['total'] = total_users
-        sorted_items = sorted(community_dict['colors']['users'].items(), key=lambda item: len(item[1]))
-        community_dict['colors']['users'] = dict(sorted_items[-2:])
 
         for color, proposals in community_proposals_dict.items():
             proposals_titles = [get_proposal_title(x) for x in proposals]
