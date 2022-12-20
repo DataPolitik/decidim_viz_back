@@ -1,6 +1,6 @@
 
 from django.core.management.base import BaseCommand
-
+from mycolorpy import colorlist as mcp
 
 import csv
 import pickle
@@ -14,6 +14,7 @@ from math import sqrt
 from collections import defaultdict
 from stats.models import Proposal, User, Comment
 
+COLORS = mcp.gen_color(cmap="tab20", n=300)
 
 def compute_phi(x0,x1,y0,y1,n):
 
@@ -33,27 +34,13 @@ def compute_phi(x0,x1,y0,y1,n):
     return phi,t
 
 
-def get_color(i, r_off=1, g_off=1, b_off=1):
-    r0, g0, b0 = 0, 0, 0
-    n = 16
-    low, high = 0.1, 0.9
-    span = high - low
-    r = low + span * (((i + r_off) * 9) % n) / (n - 1)
-    g = low + span * (((i + g_off) * 14) % n) / (n - 1)
-    b = low + span * (((i + b_off) * 20) % n) / (n - 1)
-    r = int(r * 255)
-    g = int(r * 255)
-    b = int(r * 255)
-    return '#%02x%02x%02x' % (r, g, b)
-
-
 def community_net(G_in):
     G_out = nx.Graph()
     node_color = {}
     node_community = {}
     communities = nxcom.greedy_modularity_communities(G_in)
     for i, com in enumerate(communities):
-        community_color = get_color(i)
+        community_color = COLORS[i]
         for v in com:
             G_out.add_node(v)
             node_color[v] = community_color
@@ -98,14 +85,14 @@ def generate_plotly_graph(G, positions, node_color):
         hoverinfo='text',
         marker=dict(
             showscale=False,
-            color=[],
-            size=10,
+            color=color,
+            size=12,
             colorbar=dict(
                 title='Number of links',
                 xanchor='left',
                 titleside='right'
             ),
-            line_width=2))
+            line_width=1))
 
     node_adjacencies = []
     node_text = []
@@ -137,7 +124,6 @@ def generate_plotly_graph(G, positions, node_color):
 
 def get_proposal_title(id):
     proposal = Proposal.objects.get(id_proposal=id)
-    print(proposal)
     if len(proposal.proposal_title_en) > 0:
         return proposal.proposal_title_en
     elif len(proposal.proposal_title_es) > 0:
@@ -145,18 +131,22 @@ def get_proposal_title(id):
     else:
         return ""
 
+
 class Command(BaseCommand):
     help = 'Generates an endorsements graph'
 
     def add_arguments(self, parser):
         parser.add_argument('csv_path', type=str)
-        parser.add_argument('total_users', type=int)
+        parser.add_argument('proposal_limit', type=int)
+        parser.add_argument('user_limit', type=int)
         parser.add_argument('threshold', type=float)
 
+
     def handle(self, *args, **options):
-        total_users = options['total_users']
-        threshold = options['threshold']
         csv_path = options['csv_path']
+        proposal_limit = options['proposal_limit']
+        user_limit = options['user_limit']
+        threshold = options['threshold']
 
         G = nx.DiGraph()
         user_set = set()
@@ -175,8 +165,11 @@ class Command(BaseCommand):
                         user_set.add(user_trimmed)
                         endorsed_proposals[user_trimmed].add(id_proposal)
 
+        total_proposals = set(list(total_proposals)[:proposal_limit])
+        user_set = set(list(user_set)[:user_limit])
         print("Number of users " + str(len(user_set)))
         n = len(total_proposals)
+        total_users = len(user_set)
         user_set = list(user_set)[:total_users]
         for index_user, user_a in enumerate(user_set):
             for user_b in user_set:

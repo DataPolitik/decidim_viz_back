@@ -1,8 +1,7 @@
-
 from django.core.management.base import BaseCommand
+from mycolorpy import colorlist as mcp
 
 
-import csv
 import pickle
 import plotly
 import plotly.graph_objects as go
@@ -13,6 +12,9 @@ from collections import Counter
 from math import sqrt
 from collections import defaultdict
 from stats.models import Proposal, User, Comment
+
+
+COLORS = mcp.gen_color(cmap="tab20", n=50)
 
 
 def compute_phi(x0,x1,y0,y1,n):
@@ -33,27 +35,13 @@ def compute_phi(x0,x1,y0,y1,n):
     return phi,t
 
 
-def get_color(i, r_off=1, g_off=1, b_off=1):
-    r0, g0, b0 = 0, 0, 0
-    n = 16
-    low, high = 0.1, 0.9
-    span = high - low
-    r = low + span * (((i + r_off) * 9) % n) / (n - 1)
-    g = low + span * (((i + g_off) * 14) % n) / (n - 1)
-    b = low + span * (((i + b_off) * 20) % n) / (n - 1)
-    r = int(r * 255)
-    g = int(r * 255)
-    b = int(r * 255)
-    return '#%02x%02x%02x' % (r, g, b)
-
-
 def community_net(G_in):
     G_out = nx.Graph()
     node_color = {}
     node_community = {}
     communities = nxcom.greedy_modularity_communities(G_in)
     for i, com in enumerate(communities):
-        community_color = get_color(i)
+        community_color = COLORS[i]
         for v in com:
             G_out.add_node(v)
             node_color[v] = community_color
@@ -86,6 +74,7 @@ def generate_plotly_graph(G, positions, node_color):
     node_x = []
     node_y = []
     color = []
+
     for node in G.nodes():
         x, y = positions[node]
         node_x.append(x)
@@ -98,14 +87,14 @@ def generate_plotly_graph(G, positions, node_color):
         hoverinfo='text',
         marker=dict(
             showscale=False,
-            color=[],
-            size=10,
+            color=color,
+            size=12,
             colorbar=dict(
                 title='Number of links',
                 xanchor='left',
                 titleside='right'
             ),
-            line_width=2))
+            line_width=1))
 
     node_adjacencies = []
     node_text = []
@@ -113,7 +102,7 @@ def generate_plotly_graph(G, positions, node_color):
         node_adjacencies.append(len(adjacencies[1]))
         node_text.append(str(node))
 
-    node_trace.marker.color = node_adjacencies
+
     node_trace.text = node_text
 
     fig = go.Figure(data=[edge_trace, node_trace],
@@ -227,8 +216,6 @@ class Command(BaseCommand):
             community_proposals_dict[color_hex].extend(proposals_by_user)
             total_users = total_users + 1
         community_dict['total'] = total_users
-        sorted_items = sorted(community_dict['colors']['users'].items(), key=lambda item: len(item[1]))
-        community_dict['colors']['users'] = dict(sorted_items[-2:])
 
         for color, proposals in community_proposals_dict.items():
             proposals_titles = [get_proposal_title(x) for x in proposals]
