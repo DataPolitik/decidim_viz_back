@@ -642,6 +642,33 @@ def get_daily_comments_histogram(request, date_from, date_to):
     return JsonResponse(response)
 
 
+def get_length_of_comments(request):
+    pickle_filename = "comment_length_array.pickle"
+    list_response = load_pickle_file(pickle_filename)
+    if list_response is not None:
+        return JsonResponse({'box_data': list_response})
+    comments = Comment.objects.all()
+    list_response = [len(comment.body) for comment in comments]
+    save_pickle_file(list_response, pickle_filename)
+    return JsonResponse({
+        'box_data': list_response
+    })
+
+
+def get_depth_of_comments(request):
+    pickle_filename = "comment_depth_array.pickle"
+    list_response = load_pickle_file(pickle_filename)
+    if list_response is not None:
+        return JsonResponse({'box_data': list_response})
+    comments = Comment.objects.all()
+    list_response = [comment.depth for comment in comments]
+    save_pickle_file(list_response, pickle_filename)
+    return JsonResponse({
+        'box_data': list_response
+    })
+
+
+
 def get_cumulative_comment_histogram(request, date_from, date_to):
     datetime_from = datetime.strptime(date_from, '%Y-%m-%d')
     datetime_to = datetime.strptime(date_to, '%Y-%m-%d')

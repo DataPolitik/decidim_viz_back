@@ -22,6 +22,7 @@ class Comment(models.Model):
     author = models.ForeignKey(User, on_delete=models.CASCADE)
     comments = models.ManyToManyField('self')
     language = models.CharField(max_length=4, null=True)
+    body = models.CharField(null=True,max_length=1024)
     created_at = models.DateTimeField(null=True)
     reply_to = models.ForeignKey('self', on_delete=models.CASCADE, null=True)
     proposal_replied = models.ForeignKey(to='stats.Proposal', on_delete=models.CASCADE)

@@ -1,7 +1,6 @@
 from django.urls import path
 
 from . import views
-
 urlpatterns = [
     path('', views.index, name='index'),
     path('comments/', views.comments, name='comments'),
@@ -18,6 +17,8 @@ urlpatterns = [
     path('proposals/by_date/daily/<str:date_from>/<str:date_to>/', views.get_daily_proposal_histogram, name='proposals by date_daily'),
     path('proposals/by_date/<str:date_from>/<str:date_to>/', views.get_proposals_by_date, name='proposals by date'),
     path('proposals/by_date/cumulative/<str:date_from>/<str:date_to>/', views.get_cumulative_proposal_histogram, name='proposals by date_accumulated'),
+    path('comments/length', views.get_length_of_comments, name='get_length_of_comments'),
+    path('comments/depth', views.get_depth_of_comments, name='get_depth_of_comments'),
     path('comments/by_proposal/<str:id_proposal>/daily/', views.get_daily_comments_histogram_per_proposal, name='comments by proposal'),
     path('comments/by_date/daily/<str:date_from>/<str:date_to>/', views.get_daily_comments_histogram, name='comments by date_daily'),
     path('comments/by_date/cumulative/<str:date_from>/<str:date_to>/', views.get_cumulative_comment_histogram, name='comments by date_accumulated'),
@@ -31,3 +32,4 @@ urlpatterns = [
     path('comments/histogram', views.group_by_comments, name='comments_histogram'),
     path('data/', views.download_data, name='data')
 ]
+
