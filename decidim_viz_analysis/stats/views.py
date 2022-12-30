@@ -33,20 +33,21 @@ def save_pickle_file(object_to_save, filename):
     with open(STATS_FOLDER + filename, 'wb') as handle:
         pickle.dump(object_to_save, handle)
 
+
 def index(request):
     return HttpResponse("Hello, world. You're at the polls index.")
 
 
 def parse_proposal(proposal):
     return {
-                'id': proposal.id_proposal,
-                'title_es': proposal.proposal_title_es,
-                'title_fr': proposal.proposal_title_fr,
-                'title_en': proposal.proposal_title_en,
-                'url': proposal.url,
-                'latitude': proposal.latitude,
-                'longitude': proposal.longitude
-            }
+        'id': proposal.id_proposal,
+        'title_es': proposal.proposal_title_es,
+        'title_fr': proposal.proposal_title_fr,
+        'title_en': proposal.proposal_title_en,
+        'url': proposal.url,
+        'latitude': proposal.latitude,
+        'longitude': proposal.longitude
+    }
 
 
 def get_color(i, r_off=1, g_off=1, b_off=1):
@@ -71,8 +72,8 @@ def community_net(G_in):
     return node_color, node_community, G_out
 
 
-def filter_nodes(G, minimum_degree= 2):
-    remove = [node for node,degree in dict(G.degree()).items() if degree < minimum_degree]
+def filter_nodes(G, minimum_degree=2):
+    remove = [node for node, degree in dict(G.degree()).items() if degree < minimum_degree]
     G.remove_nodes_from(remove)
     return G
 
@@ -91,7 +92,6 @@ def get_comments_node_colors(request):
 
 
 def generate_plotly_graph(G, positions, dict_names, node_color):
-
     edge_x = []
     edge_y = []
 
@@ -160,12 +160,10 @@ def generate_plotly_graph(G, positions, dict_names, node_color):
                         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
                     )
 
-
     return plotly.offline.plot(fig, include_plotlyjs=False, output_type='div')
 
 
-def compute_phi(x0,x1,y0,y1,n):
-
+def compute_phi(x0, x1, y0, y1, n):
     n11 = len(x1.intersection(y1))  # intersection user a and b
     n10 = len(x1.intersection(y0))
     n01 = len(x0.intersection(y1))
@@ -179,7 +177,7 @@ def compute_phi(x0,x1,y0,y1,n):
     phi = (n * n11 - n1_ * n_1) / sqrt(den_product)
     t = 1 + (phi * sqrt(n - 2)) / 1 + (sqrt(1 - phi * phi))
 
-    return phi,t
+    return phi, t
 
 
 def endorsements(request):
@@ -200,7 +198,7 @@ def group_by_endorsements(request):
     list_response = load_pickle_file(pickle_filename)
     if list_response is not None:
         return JsonResponse({'histogram': list_response})
-    response = Proposal.objects.values('id_proposal',).annotate(total=Count('users'),)
+    response = Proposal.objects.values('id_proposal', ).annotate(total=Count('users'), )
     total_list = [e['total'] for e in response]
     counts = dict(Counter(total_list))
     list_response = []
@@ -216,7 +214,7 @@ def group_by_comments(request):
     list_response = load_pickle_file(pickle_filename)
     if list_response is not None:
         return JsonResponse({'histogram': list_response})
-    response = Proposal.objects.values('id_proposal',).annotate(total=Count('comments'),)
+    response = Proposal.objects.values('id_proposal', ).annotate(total=Count('comments'), )
     total_list = [e['total'] for e in response]
     counts = dict(Counter(total_list))
     list_response = []
@@ -228,7 +226,7 @@ def group_by_comments(request):
 
 
 def _list_of_languages():
-    response = Comment.objects.values('language') # Distinct is not supported on sqlite
+    response = Comment.objects.values('language')  # Distinct is not supported on sqlite
     return list(set([l['language'] for l in response]))
 
 
@@ -246,7 +244,7 @@ def __gini_coefficient(x):
     """Compute Gini coefficient of array of values"""
     diffsum = 0
     x = np.array(x)
-    den = len(x)**2 * np.mean(x)
+    den = len(x) ** 2 * np.mean(x)
 
     for i, xi in enumerate(x[:-1], 1):
         diffsum += np.sum(np.abs(xi - x[i:]))
@@ -298,9 +296,9 @@ def get_users_by_comments(request, limit):
     if response is not None:
         return JsonResponse(response)
 
-    comments_per_users = Comment.objects.values('author')\
-        .annotate(total_comments=Count('author'))\
-        .order_by('-total_comments')[0:limit]
+    comments_per_users = Comment.objects.values('author') \
+                             .annotate(total_comments=Count('author')) \
+                             .order_by('-total_comments')[0:limit]
     response = {'comments': [], 'gini': -1}
     comments_values = []
 
@@ -370,11 +368,11 @@ def get_categories(request):
     response = {'categories': []}
     for category in categories:
         response['categories'].append(
-            {'id':category.pk,
+            {'id': category.pk,
              'name_es': category.name_es,
              'name_ca': category.name_ca,
              'name_en': category.name_en,
-            }
+             }
         )
     save_pickle_file(response, pickle_filename)
     return JsonResponse(response)
@@ -386,12 +384,12 @@ def get_categories_by_proposals(request, limit):
     categories_proposals = []
     for category in categories:
         response['categories'].append(
-            {'id':category.pk,
+            {'id': category.pk,
              'name_es': category.name_es,
              'name_ca': category.name_ca,
              'name_en': category.name_en,
              'categories': category.num_proposals
-            }
+             }
         )
         categories_proposals.append(category.num_proposals)
     gini_responses = __gini_coefficient(categories_proposals)
@@ -408,7 +406,6 @@ def get_temporal_limits(request):
 
     first_comment = comments[0]
     last_comment = comments.reverse()[0]
-
 
     response = {
         'proposals_from': first_proposal.published_at,
@@ -444,7 +441,7 @@ def get_categories_by_comments(request):
              'name_ca': category_detail.name_ca,
              'name_en': category_detail.name_en,
              'comments': category_count
-            }
+             }
         )
         categories_comments.append(category_count)
     response['categories'] = sorted(response['categories'], key=lambda d: d['comments'], reverse=True)
@@ -505,7 +502,7 @@ def get_daily_proposal_histogram(request, date_from, date_to):
         'history': [],
         'count': len(proposals),
         'name': 'proposals'
-                }
+    }
 
     for proposal in proposals:
         response['history'].append(
@@ -554,7 +551,7 @@ def get_cumulative_proposal_histogram(request, date_from, date_to):
         'history': [],
         'count': len(proposals),
         'name': 'proposals'
-                }
+    }
 
     sum = 0
     for proposal in proposals:
@@ -571,7 +568,6 @@ def get_cumulative_proposal_histogram(request, date_from, date_to):
 
 
 def get_daily_comments_histogram_per_proposal(request, id_proposal):
-
     comments = Comment.objects.filter(proposal_replied__id_proposal=id_proposal).annotate(
         date_truncated=TruncDay('created_at')
     ).values('date_truncated').annotate(count=Count('date_truncated')).order_by('-date_truncated')
@@ -580,7 +576,7 @@ def get_daily_comments_histogram_per_proposal(request, id_proposal):
         'history': [],
         'count': len(comments),
         'name': 'proposals'
-                }
+    }
 
     for comment in comments:
         response['history'].append(
@@ -598,7 +594,8 @@ def get_users_proposal(request, id_proposal):
     if response is not None:
         return JsonResponse(response)
 
-    users = User.objects.filter(comment__proposal_replied__id_proposal=id_proposal).annotate(count=Count('id')).order_by('-count')
+    users = User.objects.filter(comment__proposal_replied__id_proposal=id_proposal).annotate(
+        count=Count('id')).order_by('-count')
 
     response = {
         'history': [],
@@ -630,7 +627,7 @@ def get_daily_comments_histogram(request, date_from, date_to):
         'history': [],
         'count': len(comments),
         'name': 'proposals'
-                }
+    }
 
     for comment in comments:
         response['history'].append(
@@ -668,7 +665,6 @@ def get_depth_of_comments(request):
     })
 
 
-
 def get_cumulative_comment_histogram(request, date_from, date_to):
     datetime_from = datetime.strptime(date_from, '%Y-%m-%d')
     datetime_to = datetime.strptime(date_to, '%Y-%m-%d')
@@ -681,7 +677,7 @@ def get_cumulative_comment_histogram(request, date_from, date_to):
         'history': [],
         'count': len(comments),
         'name': 'comments'
-                }
+    }
 
     sum = 0
     for comment in comments:
@@ -718,3 +714,106 @@ def download_data(request):
     return response
 
 
+def get_time_to_first_response(request):
+    pickle_filename = "get_time_to_first_response.pickle"
+    list_response = load_pickle_file(pickle_filename)
+    if list_response is not None:
+        return JsonResponse({'box_data': list_response})
+
+    proposals = Proposal.objects.all()
+    list_response = []
+    for proposal in proposals:
+        proposal_creation_date = proposal.published_at
+        comments = Comment.objects.filter(proposal_replied=proposal.id_proposal).order_by('created_at')
+        if len(comments) > 0:
+            comment = comments[0]
+            total_time = comment.created_at - proposal_creation_date
+            list_response.append(total_time.total_seconds() / 3600)
+
+    save_pickle_file(list_response, pickle_filename)
+    return JsonResponse({
+        'box_data': list_response
+    })
+
+
+def get_comments_per_user(request):
+    pickle_filename = "get_comments_per_user.pickle"
+    list_response = load_pickle_file(pickle_filename)
+    if list_response is not None:
+        return JsonResponse({'box_data': list_response})
+
+    users = User.objects.all()
+    list_response = []
+    for user in users:
+        comments = Comment.objects.filter(author=user)
+        list_response.append(len(comments))
+
+    save_pickle_file(list_response, pickle_filename)
+    return JsonResponse({
+        'box_data': list_response
+    })
+
+
+def get_proportion_of_comments_per_proposal(request):
+    pickle_filename = "get_proportion_of_comments_per_proposal.pickle"
+    response = load_pickle_file(pickle_filename)
+    if response is not None:
+        return JsonResponse(response)
+
+    proposals = Proposal.objects.all()
+    zero_comments_count = 0
+    comments_count = 0
+
+    for proposal in proposals:
+        comments = Comment.objects.filter(proposal_replied=proposal.id_proposal)
+        if len(comments) == 0:
+            zero_comments_count = zero_comments_count + 1
+        else:
+            comments_count = comments_count + 1
+
+    total_comments = zero_comments_count + comments_count
+    response = {
+        '0': 100 * (zero_comments_count / total_comments),
+        '>0': 100 * (comments_count / total_comments)
+    }
+
+    save_pickle_file(response, pickle_filename)
+    return JsonResponse(response)
+
+
+def get_active_inactive_users(request):
+    pickle_filename = "get_active_inactive_users.pickle"
+    response = load_pickle_file(pickle_filename)
+    if response is not None:
+        return JsonResponse(response)
+
+    only_coments_count = 0
+    only_endorsements_count = 0
+    endorsements_comments_count = 0
+    inactive_counts = 0
+
+    users = User.objects.all()
+    for user in users:
+        comments = Comment.objects.filter(author=user)
+        comments_count = len(comments)
+        proposals_count = len(user.proposal_set.all())
+
+        if comments_count == 0 and proposals_count > 0:
+            only_endorsements_count = only_endorsements_count + 1
+        elif proposals_count == 0 and comments_count > 0:
+            only_coments_count = only_coments_count + 1
+        elif proposals_count > 0 and comments_count > 0:
+            endorsements_comments_count = endorsements_comments_count + 1
+        else:
+            inactive_counts = inactive_counts + 1
+
+    total_comments = only_coments_count + only_endorsements_count + endorsements_comments_count + inactive_counts
+    response = {
+        'comments': 100 * (only_coments_count / total_comments),
+        'endorsements': 100 * (only_endorsements_count / total_comments),
+        'all': 100 * (endorsements_comments_count / total_comments),
+        'inactive': 100 * (inactive_counts / total_comments),
+    }
+
+    save_pickle_file(response, pickle_filename)
+    return JsonResponse(response)

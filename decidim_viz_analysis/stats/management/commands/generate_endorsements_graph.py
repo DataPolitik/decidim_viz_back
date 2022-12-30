@@ -1,3 +1,4 @@
+import random
 
 from django.core.management.base import BaseCommand
 from mycolorpy import colorlist as mcp
@@ -38,7 +39,8 @@ def community_net(G_in):
     G_out = nx.Graph()
     node_color = {}
     node_community = {}
-    communities = nxcom.greedy_modularity_communities(G_in)
+    communities = nxcom.greedy_modularity_communities(G_in, resolution= 0.7)
+    modularity_values = nxcom.modularity(G_in)
     for i, com in enumerate(communities):
         community_color = COLORS[i]
         for v in com:
@@ -46,7 +48,7 @@ def community_net(G_in):
             node_color[v] = community_color
             node_community[v] = i
     G_out.add_edges_from(G_in.edges())
-    return node_color, node_community, G_out
+    return node_color, node_community, G_out, modularity_values
 
 
 def generate_plotly_graph(G, positions, node_color):
@@ -130,7 +132,6 @@ def get_proposal_title(id):
     else:
         return ""
 
-
 class Command(BaseCommand):
     help = 'Generates an endorsements graph'
 
@@ -169,7 +170,8 @@ class Command(BaseCommand):
         print("Number of users " + str(len(user_set)))
         n = len(total_proposals)
         total_users = len(user_set)
-        user_set = list(user_set)[:total_users]
+        user_set = random.sample(user_set, total_users)
+        user_set = list(user_set)
         for index_user, user_a in enumerate(user_set):
             for user_b in user_set:
                 if user_a != user_b:
@@ -190,7 +192,7 @@ class Command(BaseCommand):
                         G[user_a][user_b]['phi'] = phi
                         G[user_b][user_a]['phi'] = phi
 
-        node_color, node_community, G = community_net(G)
+        node_color, node_community, G, modularity_value = community_net(G)
         pos_ = nx.circular_layout(G)
         nx.write_gexf(G, 'endorsement.gexf')
         responseHtml = generate_plotly_graph(G, pos_, node_color)
@@ -200,6 +202,8 @@ class Command(BaseCommand):
             pickle.dump(responseHtml, handle, protocol=pickle.HIGHEST_PROTOCOL)
         with open("stats/cache/endorsement_html.html", "w") as file:
             file.write(responseHtml)
+        with open('stats/cache/endorsement_all_modularity.pickle', 'wb') as handle:
+            pickle.dump(modularity_value, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         community_dict = dict()
         community_dict['colors'] = dict()
