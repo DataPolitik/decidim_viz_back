@@ -40,7 +40,7 @@ def community_net(G_in):
     node_color = {}
     node_community = {}
     communities = nxcom.greedy_modularity_communities(G_in, resolution= 0.7)
-    modularity_values = nxcom.modularity(G_in)
+    modularity_values = nxcom.modularity(G_in, communities)
     for i, com in enumerate(communities):
         community_color = COLORS[i]
         for v in com:

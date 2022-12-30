@@ -817,3 +817,9 @@ def get_active_inactive_users(request):
 
     save_pickle_file(response, pickle_filename)
     return JsonResponse(response)
+
+
+def get_modularity_value(request):
+    with open('stats/cache/endorsement_all_modularity.pickle', 'rb') as handle:
+        modularity = pickle.load(handle)
+    return JsonResponse({'modularity': modularity})
