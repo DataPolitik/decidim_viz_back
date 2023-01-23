@@ -4,9 +4,10 @@ from . import views
 urlpatterns = [
     path('', views.index, name='index'),
     path('comments/', views.comments, name='comments'),
+    path('comments/modularity', views.get_comments_modularity_value, name='get_comments_modularity_value'),
     path('comments/colors', views.get_comments_node_colors, name='comments_colors'),
     path('endorsements/', views.endorsements, name='endorsements'),
-    path('endorsements/modularity', views.get_modularity_value, name='get_modularity_value'),
+    path('endorsements/modularity', views.get_endorsements_modularity_value, name='get_endorsements_modularity_value'),
     path('endorsements/colors', views.get_endorsement_node_colors, name='endorsements_colors'),
     path('users/by_proposal/<str:id_proposal>/', views.get_users_proposal, name='users_by_proposal'),
     path('users/by_comments/<int:limit>', views.get_users_by_comments, name='users_by_comments'),

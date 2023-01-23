@@ -40,6 +40,7 @@ def community_net(G_in):
     node_color = {}
     node_community = {}
     communities = nxcom.greedy_modularity_communities(G_in)
+    modularity_values = nxcom.modularity(G_in, communities)
     for i, com in enumerate(communities):
         community_color = COLORS[i]
         for v in com:
@@ -47,7 +48,7 @@ def community_net(G_in):
             node_color[v] = community_color
             node_community[v] = i
     G_out.add_edges_from(G_in.edges())
-    return node_color, node_community, G_out
+    return node_color, node_community, G_out, modularity_values
 
 
 def generate_plotly_graph(G, positions, node_color):
@@ -190,7 +191,7 @@ class Command(BaseCommand):
         list_to_remove = [n[0] for n in outdeg if n[1] <= 1]
 
         G.remove_nodes_from(list_to_remove)
-        node_color, node_community, G = community_net(G)
+        node_color, node_community, G, modularity_value = community_net(G)
         pos_ = nx.circular_layout(G)
         responseHtml = generate_plotly_graph(G, pos_, node_color)
         nx.write_gexf(G, 'stats/cache/comments.gexf')
@@ -201,6 +202,8 @@ class Command(BaseCommand):
             pickle.dump(responseHtml, handle, protocol=pickle.HIGHEST_PROTOCOL)
         with open("stats/cache/comment_html.html", "w") as file:
             file.write(responseHtml)
+        with open('stats/cache/comment_all_modularity.pickle', 'wb') as handle:
+            pickle.dump(modularity_value, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         community_dict = dict()
         community_dict['colors'] = dict()

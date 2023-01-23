@@ -812,14 +812,20 @@ def get_active_inactive_users(request):
         'comments': 100 * (only_coments_count / total_comments),
         'endorsements': 100 * (only_endorsements_count / total_comments),
         'all': 100 * (endorsements_comments_count / total_comments),
-        'inactive': 100 * (inactive_counts / total_comments),
+        # 'inactive': 100 * (inactive_counts / total_comments),
     }
 
     save_pickle_file(response, pickle_filename)
     return JsonResponse(response)
 
 
-def get_modularity_value(request):
+def get_endorsements_modularity_value(request):
     with open('stats/cache/endorsement_all_modularity.pickle', 'rb') as handle:
+        modularity = pickle.load(handle)
+    return JsonResponse({'modularity': modularity})
+
+
+def get_comments_modularity_value(request):
+    with open('stats/cache/comment_all_modularity.pickle', 'rb') as handle:
         modularity = pickle.load(handle)
     return JsonResponse({'modularity': modularity})
