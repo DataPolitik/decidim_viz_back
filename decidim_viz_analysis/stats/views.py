@@ -5,7 +5,7 @@ from django.db.models.functions import TruncDay, TruncMonth, TruncYear
 
 from django.http import HttpResponse, JsonResponse
 from stats.models import Proposal, User, Comment, Category
-from stats.networks import get_network
+from stats.networks import community_colors, get_network
 
 
 
@@ -44,6 +44,32 @@ def comments_modularity(request):
 def endorsements_modularity(request):
     """Modularity of the community partition of the endorsements network."""
     return JsonResponse({'modularity': get_network('endorsements')['modularity']})
+
+
+def _community_colors(request, kind):
+    try:
+        n_proposals = int(request.GET.get('proposals', 3))
+    except ValueError:
+        return JsonResponse({'error': 'proposals must be an integer'}, status=400)
+    if n_proposals < 0:
+        return JsonResponse({'error': 'proposals must be >= 0'}, status=400)
+    return JsonResponse(community_colors(kind, n_proposals, request.GET.get('lang', 'en')))
+
+
+def comments_colors(request):
+    """Communities of the comments network keyed by colour, with their top proposals.
+
+    Query parameters: proposals (per community, default 3), lang (en, es or fr; default en).
+    """
+    return _community_colors(request, 'comments')
+
+
+def endorsements_colors(request):
+    """Communities of the endorsements network keyed by colour, with their top proposals.
+
+    Query parameters: proposals (per community, default 3), lang (en, es or fr; default en).
+    """
+    return _community_colors(request, 'endorsements')
 
 
 def group_by_endorsements(request):

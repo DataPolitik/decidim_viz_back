@@ -28,6 +28,7 @@ significant, so only the pairs with n11 > 0 (the non-zero entries of B @ B.T,
 with B the sparse user x proposal incidence matrix) need to be evaluated; the
 others still count in m.
 """
+import colorsys
 from collections import defaultdict
 from math import cos, pi, sin
 
@@ -116,9 +117,30 @@ def phi_edges(memberships, n_proposals, alpha=DEFAULT_ALPHA, correction=DEFAULT_
     return edges, n_tests
 
 
-def get_color(i):
-    n = 26
-    return ((n * (i + 1) * 3) % 255, (n * (i + 1) * 5) % 255, (n * (i + 1) * 7) % 255)
+def distinct_colors(k):
+    """k distinct RGB colours, well separated for the first ones.
+
+    Hues follow the golden-ratio sequence, cycling through a few saturation and
+    brightness levels. Colours must be unique because the API uses them as
+    community keys (/stats/<kind>/colors).
+    """
+    golden = (5 ** 0.5 - 1) / 2
+    levels = [(0.65, 0.90), (0.90, 0.70), (0.45, 0.80), (0.80, 0.55)]
+    colors, used = [], set()
+    for i in range(k):
+        saturation, value = levels[(i // 8) % len(levels)]
+        r, g, b = (round(255 * c) for c in colorsys.hsv_to_rgb((i * golden) % 1.0, saturation, value))
+        while (r, g, b) in used:  # rare rounding collision: nudge until unique
+            b = (b + 1) % 256
+            if b == 0:
+                g = (g + 1) % 256
+        used.add((r, g, b))
+        colors.append((r, g, b))
+    return colors
+
+
+def to_hex(rgb):
+    return '#{:02x}{:02x}{:02x}'.format(*rgb)
 
 
 def build_network(memberships, n_proposals, usernames, alpha=DEFAULT_ALPHA, correction=DEFAULT_CORRECTION,
@@ -143,6 +165,7 @@ def build_network(memberships, n_proposals, usernames, alpha=DEFAULT_ALPHA, corr
     modularity = nx.community.modularity(graph, communities, weight='phi') if graph.number_of_edges() else 0.0
 
     node_community = {node: i for i, community in enumerate(communities) for node in community}
+    community_colors = distinct_colors(len(communities))
 
     # Circular layout with communities as contiguous arcs.
     ordered = [node for community in communities for node in sorted(community)]
@@ -160,7 +183,7 @@ def build_network(memberships, n_proposals, usernames, alpha=DEFAULT_ALPHA, corr
         'users': dict(adjacency),
         'positions': positions,
         'usernames': {node: usernames.get(node, '') for node in active},
-        'colors': {node: get_color(node_community[node]) for node in active},
+        'colors': {node: community_colors[node_community[node]] for node in active},
         'communities': node_community,
         'modularity': modularity,
         'parameters': {

@@ -11,7 +11,8 @@ from django.test import TestCase, override_settings
 from stats.models import Comment, Proposal, User
 from scipy.stats import fisher_exact
 
-from stats.phi.phi import build_network, overlap_pvalue, phi_coefficient, phi_edges, significant
+from stats.phi.phi import (build_network, distinct_colors, overlap_pvalue, phi_coefficient, phi_edges,
+                           significant, to_hex)
 
 PROPOSAL_COLUMNS = ['id', 'title/machine_translations/es', 'title/machine_translations/en',
                     'title/machine_translations/fr', 'participatory_space/url', 'latitude', 'longitude',
@@ -247,3 +248,78 @@ class ViewTests(TestCase):
         call_command('generate_endorses_cache', '--alpha', '1', '--correction', 'none', stdout=out)
         self.assertIn('endorsements network: 3 users', out.getvalue())
         self.assertTrue(os.path.exists(os.path.join(self.tmp.name, 'endorsement_all.pickle')))
+
+
+class DistinctColorsTests(TestCase):
+    def test_colors_are_unique_beyond_the_old_period(self):
+        # The old formula repeated every 255 communities, which would merge them as API keys.
+        colors = distinct_colors(5000)
+        self.assertEqual(len(set(colors)), 5000)
+        self.assertTrue(all(0 <= c <= 255 for rgb in colors for c in rgb))
+
+    def test_hex(self):
+        self.assertEqual(to_hex((255, 0, 16)), '#ff0010')
+
+
+class ColorsEndpointTests(TestCase):
+    """Two groups of five users, each endorsing its own five proposals."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        settings_override = override_settings(DECIDIM_VIZ_CACHE_DIR=self.tmp.name)
+        settings_override.enable()
+        self.addCleanup(settings_override.disable)
+
+        proposals = {i: Proposal.objects.create(id_proposal=i, proposal_title_en='EN {}'.format(i),
+                                                proposal_title_es='ES {}'.format(i), proposal_title_fr='')
+                     for i in range(1, 21)}
+        self.groups = []
+        for g, proposal_ids in enumerate((range(1, 6), range(6, 11))):
+            users = [User.objects.create(name='g{}u{}'.format(g, k)) for k in range(5)]
+            for i in proposal_ids:
+                proposals[i].users.add(*users)
+            self.groups.append(({u.id for u in users}, set(proposal_ids)))
+
+    def test_shape_and_communities(self):
+        response = self.client.get('/stats/endorsements/colors')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['total'], 10)
+        users, proposals = data['colors']['users'], data['colors']['proposals']
+        self.assertEqual(len(users), 2)
+        self.assertEqual(set(users), set(proposals))
+        self.assertTrue(all(color.startswith('#') and len(color) == 7 for color in users))
+
+        for color, members in users.items():
+            members = set(members)
+            group_proposals = next(props for ids, props in self.groups if ids == members)
+            self.assertEqual(len(proposals[color]), 3)
+            for title, count in proposals[color].items():
+                self.assertIn(int(title.split()[1]), group_proposals)
+                self.assertEqual(count, 5)
+
+    def test_colors_match_the_network(self):
+        data = self.client.get('/stats/endorsements/colors').json()
+        network = self.client.get('/stats/endorsements/').json()
+        for color, members in data['colors']['users'].items():
+            for user in members:
+                self.assertEqual(to_hex(network['colors'][str(user)]), color)
+
+    def test_parameters(self):
+        data = self.client.get('/stats/endorsements/colors?proposals=1&lang=es').json()
+        for top in data['colors']['proposals'].values():
+            self.assertEqual(len(top), 1)
+            self.assertTrue(next(iter(top)).startswith('ES '))
+        self.assertEqual(self.client.get('/stats/endorsements/colors?proposals=x').status_code, 400)
+        self.assertEqual(self.client.get('/stats/endorsements/colors?proposals=-1').status_code, 400)
+
+    def test_language_falls_back_when_title_missing(self):
+        data = self.client.get('/stats/endorsements/colors?lang=fr').json()
+        titles = [title for top in data['colors']['proposals'].values() for title in top]
+        self.assertTrue(all(title.startswith('EN ') for title in titles))
+
+    def test_comments_colors(self):
+        response = self.client.get('/stats/comments/colors')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'total': 0, 'colors': {'users': {}, 'proposals': {}}})
