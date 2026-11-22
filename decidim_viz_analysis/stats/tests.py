@@ -420,3 +420,23 @@ class UserMatchingTests(TestCase):
         self.assertNotIn(unknown.id, comment_memberships())
         self.assertIn(User.objects.get(name='Pau').id, comment_memberships())
         self.assertEqual(compute_network('endorsements')['parameters']['n_ambiguous_users_excluded'], 2)
+
+
+class ReplyLinkTests(TestCase):
+    def test_replies_point_one_way(self):
+        # Regression: a symmetrical ManyToManyField('self') listed the parent among its reply's "comments".
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        call_command('load_endorses_from_csv', write_csv(tmp.name, 'p.csv', PROPOSAL_COLUMNS, [proposal_row(1)]),
+                     stdout=io.StringIO())
+        rows = [comment_row(10, 1, 'Ana', 1), comment_row(11, 2, 'Bob', 1, depth=1, parent=10),
+                comment_row(12, 3, 'Cat', 1, depth=2, parent=11)]
+        call_command('load_comments_from_csv', write_csv(tmp.name, 'c.csv', COMMENT_COLUMNS, rows),
+                     stdout=io.StringIO(), stderr=io.StringIO())
+
+        top, reply, nested = (Comment.objects.get(id_comment=i) for i in (10, 11, 12))
+        self.assertEqual(list(top.replies.values_list('id_comment', flat=True)), [11])
+        self.assertEqual(list(reply.replies.values_list('id_comment', flat=True)), [12])
+        self.assertFalse(nested.replies.exists())
+        self.assertIsNone(top.reply_to)
+        self.assertEqual(nested.reply_to, reply)

@@ -57,8 +57,6 @@ class Command(BaseCommand):
                     'proposal_replied': proposal,
                 },
             )
-            if parent is not None:
-                parent.comments.add(comment)
             proposal.comments.add(comment)
 
         users.reconcile()

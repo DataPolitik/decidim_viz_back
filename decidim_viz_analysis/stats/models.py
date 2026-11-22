@@ -30,10 +30,10 @@ class Category(models.Model):
 class Comment(models.Model):
     id_comment = models.IntegerField(primary_key=True)
     author = models.ForeignKey(User, on_delete=models.CASCADE)
-    comments = models.ManyToManyField('self')
     language = models.CharField(max_length=4, null=True)
     created_at = models.DateTimeField(null=True)
-    reply_to = models.ForeignKey('self', on_delete=models.CASCADE, null=True)
+    # The comment this one answers (null for top-level comments); comment.replies are its answers.
+    reply_to = models.ForeignKey('self', on_delete=models.CASCADE, null=True, related_name='replies')
     proposal_replied = models.ForeignKey(to='stats.Proposal', on_delete=models.CASCADE)
     depth = models.IntegerField(primary_key=False, null=False, default=0)
 
