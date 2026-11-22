@@ -1,6 +1,7 @@
 import csv
 import io
 import os
+import pickle
 import tempfile
 
 import numpy as np
@@ -223,6 +224,23 @@ class ViewTests(TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertIn('modularity', response.json())
             self.assertTrue(os.path.exists(os.path.join(self.tmp.name, cache_file)))
+
+    def test_modularity_endpoints(self):
+        for kind in ('comments', 'endorsements'):
+            response = self.client.get('/stats/{}/modularity'.format(kind))  # no trailing slash, as the front end calls it
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(set(response.json()), {'modularity'})
+            network = self.client.get('/stats/{}/'.format(kind)).json()
+            self.assertEqual(response.json()['modularity'], network['modularity'])
+
+    def test_modularity_endpoint_reads_the_cache(self):
+        call_command('generate_endorses_cache', '--alpha', '1', '--correction', 'none', stdout=io.StringIO())
+        with open(os.path.join(self.tmp.name, 'endorsement_all.pickle'), 'rb') as handle:
+            cached = pickle.load(handle)
+        cached['modularity'] = 0.123  # a value only the cache can provide
+        with open(os.path.join(self.tmp.name, 'endorsement_all.pickle'), 'wb') as handle:
+            pickle.dump(cached, handle)
+        self.assertEqual(self.client.get('/stats/endorsements/modularity').json(), {'modularity': 0.123})
 
     def test_cache_commands(self):
         out = io.StringIO()

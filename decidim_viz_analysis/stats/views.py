@@ -36,6 +36,16 @@ def endorsements(request):
     return JsonResponse(get_network('endorsements'))
 
 
+def comments_modularity(request):
+    """Modularity of the community partition of the comments network."""
+    return JsonResponse({'modularity': get_network('comments')['modularity']})
+
+
+def endorsements_modularity(request):
+    """Modularity of the community partition of the endorsements network."""
+    return JsonResponse({'modularity': get_network('endorsements')['modularity']})
+
+
 def group_by_endorsements(request):
     response = Proposal.objects.values('id_proposal',).annotate(total=Count('users'),)
     total_list = [e['total'] for e in response]

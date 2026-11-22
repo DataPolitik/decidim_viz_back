@@ -54,7 +54,7 @@ Run `python manage.py test` to run the tests.
 
 `/stats/endorsements/` and `/stats/comments/` return a user-user network: two users are linked when they endorse (or comment on) the same proposals significantly more often than chance.
 
-For users A and B who took part in `a` and `b` of the `n` proposals, sharing `n11` of them, the p-value is `P(X >= n11)` with `X ~ Hypergeometric(n, a, b)`, i.e. a one-sided Fisher exact test. Every pair of active users counts as one test, and the p-values are corrected for multiple testing with `--correction fdr` (Benjamini-Hochberg, the default), `bonferroni` or `none`, at level `--alpha` (default 0.05). Edges are weighted by the phi coefficient `(n*n11 - a*b) / sqrt(a*b*(n-a)*(n-b))`; communities are found with Louvain on those weights (`--seed`, default 42), and the response includes their modularity.
+For users A and B who took part in `a` and `b` of the `n` proposals, sharing `n11` of them, the p-value is `P(X >= n11)` with `X ~ Hypergeometric(n, a, b)`, i.e. a one-sided Fisher exact test. Every pair of active users counts as one test, and the p-values are corrected for multiple testing with `--correction fdr` (Benjamini-Hochberg, the default), `bonferroni` or `none`, at level `--alpha` (default 0.05). Edges are weighted by the phi coefficient `(n*n11 - a*b) / sqrt(a*b*(n-a)*(n-b))`; communities are found with Louvain on those weights (`--seed`, default 42), and the response includes their modularity. `/stats/comments/modularity` and `/stats/endorsements/modularity` return just `{"modularity": ...}`, as the front end's Interactions page expects.
 
 The networks are cached; re-run the `generate_*_cache` commands after importing new data. If no cache exists, the first request computes it.
 
