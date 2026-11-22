@@ -24,11 +24,39 @@ After Python is installed, you will need to get all the requirements listed in t
 
 ## Configuration
 
-This project uses the Django Framework, so you maybe would like to take a look to the Django configuration file before proceeding to execute the project (https://docs.djangoproject.com/en/4.1/topics/settings/).
+Settings live in `decidim_viz_analysis/decidim_viz_analysis/settings.py` and are read from environment variables, so no secret needs to be committed:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DJANGO_SECRET_KEY` | dev-only key | Required when `DJANGO_DEBUG=0` |
+| `DJANGO_DEBUG` | `1` | Set to `0` in production |
+| `DJANGO_ALLOWED_HOSTS` | `localhost,127.0.0.1` | Comma-separated |
+| `DJANGO_CORS_ORIGINS` | empty (all origins allowed in debug) | Origin(s) of the front end |
+| `DJANGO_DB_PATH` | `db.sqlite3` | SQLite database file |
+| `DECIDIM_VIZ_CACHE_DIR` | `stats/cache` | Where the network caches are written |
 
 ## Executing
 
-Run `python manage.py runserver` to run the back-end in your localhost.
+From `decidim_viz_analysis/`:
+
+```
+python manage.py migrate
+python manage.py load_endorses_from_csv proposals.csv   # Decidim proposals export (";"-separated)
+python manage.py load_comments_from_csv comments.csv    # Decidim comments export, after the proposals
+python manage.py generate_endorses_cache                # phi networks, see below
+python manage.py generate_comments_cache
+python manage.py runserver
+```
+
+Run `python manage.py test` to run the tests.
+
+## Co-participation networks
+
+`/stats/endorsements/` and `/stats/comments/` return a user-user network: two users are linked when they endorse (or comment on) the same proposals significantly more often than chance.
+
+For users A and B who took part in `a` and `b` of the `n` proposals, sharing `n11` of them, the p-value is `P(X >= n11)` with `X ~ Hypergeometric(n, a, b)`, i.e. a one-sided Fisher exact test. Every pair of active users counts as one test, and the p-values are corrected for multiple testing with `--correction fdr` (Benjamini-Hochberg, the default), `bonferroni` or `none`, at level `--alpha` (default 0.05). Edges are weighted by the phi coefficient `(n*n11 - a*b) / sqrt(a*b*(n-a)*(n-b))`; communities are found with Louvain on those weights (`--seed`, default 42), and the response includes their modularity.
+
+The networks are cached; re-run the `generate_*_cache` commands after importing new data. If no cache exists, the first request computes it.
 
 ## About the back-end application
 

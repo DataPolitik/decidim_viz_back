@@ -1,54 +1,60 @@
 import csv
-from datetime import datetime
 
 from django.core.management.base import BaseCommand
+from django.db import transaction
 
-from stats.models import Proposal, User, Category
+from stats.csv_utils import blank_to_none, parse_datetime, split_names
+from stats.models import Category, Proposal, User
 
 
 class Command(BaseCommand):
-    help = 'Import data from csv file into the SQL database.'
+    help = 'Import proposals and their endorsements from a Decidim proposals CSV export (";"-separated).'
 
     def add_arguments(self, parser):
         parser.add_argument('csv_path', type=str)
 
+    @transaction.atomic
     def handle(self, *args, **options):
-        csv_path = options['csv_path']
+        users_by_name = {user.name: user for user in User.objects.all()}
 
-        with open(csv_path, 'r', encoding='utf-8') as file:
-            reader = csv.DictReader(file, delimiter=';')
+        with open(options['csv_path'], 'r', encoding='utf-8') as file:
+            for row in csv.DictReader(file, delimiter=';'):
+                endorsers = split_names(row.get('endorsements/user_endorsements'))
 
-            for row in reader:
-                proposal_to_add = Proposal()
-                proposal_to_add.id_proposal = row['id']
-                proposal_to_add.proposal_title_es = row['title/machine_translations/es']
-                proposal_to_add.proposal_title_en = row['title/machine_translations/en']
-                proposal_to_add.proposal_title_fr = row['title/machine_translations/fr']
-                proposal_to_add.url = row['participatory_space/url']
-                proposal_to_add.latitude = row['latitude']
-                proposal_to_add.longitude = row['longitude']
-                proposal_to_add.published_at = datetime.strptime(row['published_at'], '%Y-%m-%d %H:%M:%S %Z')
-                proposal_to_add.endorsements = len(row['endorsements/user_endorsements'].split(','))
-                if row['category/id'] != '':
-                    if Category.objects.filter(id=row['category/id']).exists():
-                        proposal_to_add.category = Category.objects.get(id=row['category/id'])
-                    else:
-                        category_to_add = Category(id=row['category/id'])
-                        category_to_add.name_es = row['category/name/es']
-                        category_to_add.name_en = row['category/name/en']
-                        category_to_add.save()
-                        proposal_to_add.category = category_to_add
-                proposal_to_add.save()
+                proposal, _ = Proposal.objects.update_or_create(
+                    id_proposal=int(row['id']),
+                    defaults={
+                        'proposal_title_es': row.get('title/machine_translations/es', ''),
+                        'proposal_title_en': row.get('title/machine_translations/en', ''),
+                        'proposal_title_fr': row.get('title/machine_translations/fr', ''),
+                        'url': blank_to_none(row.get('participatory_space/url')),
+                        'latitude': blank_to_none(row.get('latitude')),
+                        'longitude': blank_to_none(row.get('longitude')),
+                        'published_at': parse_datetime(row.get('published_at')),
+                        'endorsements': len(endorsers),
+                        'category': self._category(row),
+                    },
+                )
 
-                users = row['endorsements/user_endorsements'].split(',')
-                for user in users:
-                    user_trimmed = user.strip()
-                    if len(user_trimmed) > 0:
-                        if not User.objects.filter(name=user_trimmed).exists():
-                            user_to_add = User()
-                            user_to_add.name = user_trimmed
-                            user_to_add.save()
-                            proposal_to_add.users.add(user_to_add)
+                for name in endorsers:
+                    if name not in users_by_name:
+                        users_by_name[name] = User.objects.create(name=name)
+                proposal.users.add(*(users_by_name[name] for name in endorsers))
 
         self.stdout.write('There are {} proposals!'.format(Proposal.objects.count()))
         self.stdout.write('There are {} users!'.format(User.objects.count()))
+
+    @staticmethod
+    def _category(row):
+        category_id = (row.get('category/id') or '').strip()
+        if not category_id:
+            return None
+        category, _ = Category.objects.get_or_create(
+            id=int(category_id),
+            defaults={
+                'name_es': blank_to_none(row.get('category/name/es')),
+                'name_ca': blank_to_none(row.get('category/name/ca')),
+                'name_en': blank_to_none(row.get('category/name/en')),
+            },
+        )
+        return category
