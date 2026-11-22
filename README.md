@@ -50,6 +50,17 @@ python manage.py runserver
 
 Run `python manage.py test` to run the tests.
 
+## User matching
+
+The comments export identifies authors by Decidim id (`author/id`), but the proposals export lists endorsers by display name only (`endorsements/user_endorsements`). So:
+
+- commenters are identified by their Decidim id, and homonyms stay separate;
+- an endorser name is linked to a commenter when exactly one commenter has that name;
+- a name known to belong to several people (several commenters share it, or it appears twice in one proposal's endorsements) is kept as an *ambiguous* record, as are comments without an author, and these are left out of the networks (`n_ambiguous_users_excluded` in the network parameters);
+- endorsers who share a name but never comment cannot be told apart and count as one person.
+
+The import commands print how many users fall into each group. See `stats/users.py` for the details.
+
 ## Co-participation networks
 
 `/stats/endorsements/` and `/stats/comments/` return a user-user network: two users are linked when they endorse (or comment on) the same proposals significantly more often than chance.

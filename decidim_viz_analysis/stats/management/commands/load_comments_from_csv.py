@@ -4,7 +4,8 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from stats.csv_utils import blank_to_none, parse_datetime
-from stats.models import Comment, Proposal, User
+from stats.models import Comment, Proposal
+from stats.users import UserResolver
 
 
 class Command(BaseCommand):
@@ -22,7 +23,7 @@ class Command(BaseCommand):
         # A reply can only be linked once its parent exists, so load by depth.
         rows.sort(key=lambda row: int(row.get('depth') or 0))
 
-        users_by_name = {user.name: user for user in User.objects.all()}
+        users = UserResolver()
         skipped = 0
 
         for row in rows:
@@ -42,14 +43,13 @@ class Command(BaseCommand):
                     skipped += 1
                     continue
 
-            name = row['author/name'].strip()
-            if name not in users_by_name:
-                users_by_name[name] = User.objects.create(name=name)
+            author_id = (row.get('author/id') or '').strip()
+            author = users.commenter(int(author_id) if author_id else None, row.get('author/name'))
 
             comment, _ = Comment.objects.update_or_create(
                 id_comment=int(row['id']),
                 defaults={
-                    'author': users_by_name[name],
+                    'author': author,
                     'depth': depth,
                     'language': blank_to_none(row.get('locale')),
                     'created_at': parse_datetime(row.get('created_at')),
@@ -61,7 +61,9 @@ class Command(BaseCommand):
                 parent.comments.add(comment)
             proposal.comments.add(comment)
 
+        users.reconcile()
         self.stdout.write('There are {} comments!'.format(Comment.objects.count()))
+        self.stdout.write(users.summary())
         if skipped:
             self.stderr.write('Skipped {} comments whose proposal or parent comment was not found.'.format(skipped))
 

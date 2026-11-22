@@ -2,7 +2,17 @@ from django.db import models
 
 
 class User(models.Model):
-    name = models.CharField(max_length=50, unique=True)
+    """A Decidim participant, or a display name that could not be tied to one.
+
+    - decidim_id set: an identified participant (from the comments export).
+    - decidim_id null: a name-only record, created for endorsers, since the
+      proposals export lists endorsers by display name only. See stats/users.py.
+    - ambiguous: the record is known to stand for more than one person (or for
+      unknown authors); it is excluded from the networks.
+    """
+    name = models.CharField(max_length=255, db_index=True)
+    decidim_id = models.IntegerField(null=True, blank=True, unique=True)
+    ambiguous = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['name']

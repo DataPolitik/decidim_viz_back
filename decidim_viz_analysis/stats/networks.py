@@ -15,17 +15,19 @@ CACHE_FILES = {
 
 
 def comment_memberships():
-    """{user_id: set of proposals the user commented on}"""
+    """{user_id: set of proposals the user commented on}, without ambiguous users"""
     memberships = defaultdict(set)
-    for user_id, proposal_id in Comment.objects.values_list('author_id', 'proposal_replied_id'):
+    comments = Comment.objects.filter(author__ambiguous=False)
+    for user_id, proposal_id in comments.values_list('author_id', 'proposal_replied_id'):
         memberships[user_id].add(proposal_id)
     return memberships
 
 
 def endorsement_memberships():
-    """{user_id: set of proposals the user endorsed}"""
+    """{user_id: set of proposals the user endorsed}, without ambiguous users"""
     memberships = defaultdict(set)
-    for user_id, proposal_id in Proposal.users.through.objects.values_list('user_id', 'proposal_id'):
+    endorsements = Proposal.users.through.objects.filter(user__ambiguous=False)
+    for user_id, proposal_id in endorsements.values_list('user_id', 'proposal_id'):
         memberships[user_id].add(proposal_id)
     return memberships
 
@@ -39,8 +41,11 @@ MEMBERSHIPS = {
 def compute_network(kind, alpha=DEFAULT_ALPHA, correction=DEFAULT_CORRECTION, seed=DEFAULT_SEED):
     memberships = MEMBERSHIPS[kind]()
     usernames = dict(User.objects.filter(id__in=list(memberships)).values_list('id', 'name'))
-    return build_network(memberships, Proposal.objects.count(), usernames,
-                         alpha=alpha, correction=correction, seed=seed)
+    network = build_network(memberships, Proposal.objects.count(), usernames,
+                            alpha=alpha, correction=correction, seed=seed)
+    # Records standing for several people (see stats/users.py) are left out.
+    network['parameters']['n_ambiguous_users_excluded'] = User.objects.filter(ambiguous=True).count()
+    return network
 
 
 def cache_path(kind):

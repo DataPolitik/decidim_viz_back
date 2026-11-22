@@ -18,7 +18,7 @@ PROPOSAL_COLUMNS = ['id', 'title/machine_translations/es', 'title/machine_transl
                     'title/machine_translations/fr', 'participatory_space/url', 'latitude', 'longitude',
                     'published_at', 'endorsements/user_endorsements', 'category/id', 'category/name/es',
                     'category/name/en']
-COMMENT_COLUMNS = ['id', 'depth', 'locale', 'created_at', 'author/name', 'commentable_id', 'root_commentable_id']
+COMMENT_COLUMNS = ['id', 'depth', 'locale', 'created_at', 'author/id', 'author/name', 'commentable_id', 'root_commentable_id']
 
 
 def write_csv(directory, name, columns, rows):
@@ -323,3 +323,100 @@ class ColorsEndpointTests(TestCase):
         response = self.client.get('/stats/comments/colors')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {'total': 0, 'colors': {'users': {}, 'proposals': {}}})
+
+
+def comment_row(id_, author_id, name, proposal, depth=0, parent=None):
+    return {'id': id_, 'depth': depth, 'author/id': author_id, 'author/name': name,
+            'commentable_id': parent if depth else proposal, 'root_commentable_id': proposal,
+            'created_at': '2022-01-02 10:00:00 UTC', 'locale': 'en'}
+
+
+class UserMatchingTests(TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def load_proposals(self, rows):
+        call_command('load_endorses_from_csv',
+                     write_csv(self.tmp.name, 'p.csv', PROPOSAL_COLUMNS, rows), stdout=io.StringIO())
+
+    def load_comments(self, rows):
+        out = io.StringIO()
+        call_command('load_comments_from_csv', write_csv(self.tmp.name, 'c.csv', COMMENT_COLUMNS, rows),
+                     stdout=out, stderr=io.StringIO())
+        return out.getvalue()
+
+    def test_homonym_commenters_stay_separate(self):
+        self.load_proposals([proposal_row(1), proposal_row(2)])
+        self.load_comments([comment_row(10, 501, 'Maria', 1), comment_row(11, 502, 'Maria', 2)])
+        marias = User.objects.filter(name='Maria')
+        self.assertEqual(sorted(marias.values_list('decidim_id', flat=True)), [501, 502])
+        self.assertEqual(Comment.objects.get(id_comment=11).author.decidim_id, 502)
+
+    def test_endorser_merged_into_the_only_commenter_with_that_name(self):
+        self.load_proposals([proposal_row(1, 'Ana'), proposal_row(2, 'Ana'), proposal_row(3)])
+        output = self.load_comments([comment_row(10, 7, 'Ana', 3)])
+
+        ana = User.objects.get(name='Ana')  # a single record left
+        self.assertEqual(ana.decidim_id, 7)
+        self.assertFalse(ana.ambiguous)
+        self.assertEqual(set(ana.proposal_set.values_list('id_proposal', flat=True)), {1, 2})
+        self.assertEqual(ana.comment_set.count(), 1)
+        self.assertIn('1 identified by Decidim id, 0 matched by name only, 0 ambiguous', output)
+
+    def test_endorser_name_shared_by_two_commenters_is_ambiguous(self):
+        self.load_proposals([proposal_row(1, 'Maria'), proposal_row(2), proposal_row(3)])
+        self.load_comments([comment_row(10, 501, 'Maria', 2), comment_row(11, 502, 'Maria', 3)])
+
+        placeholder = User.objects.get(name='Maria', decidim_id__isnull=True)
+        self.assertTrue(placeholder.ambiguous)
+        self.assertEqual(list(placeholder.proposal_set.values_list('id_proposal', flat=True)), [1])
+        for decidim_id in (501, 502):  # the endorsement is not given to either Maria
+            self.assertFalse(User.objects.get(decidim_id=decidim_id).proposal_set.exists())
+
+    def test_same_name_twice_on_one_proposal_is_ambiguous(self):
+        self.load_proposals([proposal_row(1, 'Joan, Joan, Pau')])
+        self.assertTrue(User.objects.get(name='Joan').ambiguous)
+        self.assertFalse(User.objects.get(name='Pau').ambiguous)
+        self.assertEqual(Proposal.objects.get(id_proposal=1).endorsements, 3)
+        # An ambiguous name is not merged into a commenter even if only one has it.
+        self.load_comments([comment_row(10, 9, 'Joan', 1)])
+        self.assertEqual(User.objects.filter(name='Joan').count(), 2)
+
+    def test_endorsements_reloaded_after_comments_go_to_the_identified_user(self):
+        self.load_proposals([proposal_row(1)])
+        self.load_comments([comment_row(10, 7, 'Ana', 1)])
+        self.load_proposals([proposal_row(1), proposal_row(2, 'Ana')])
+        self.assertEqual(User.objects.filter(name='Ana').count(), 1)
+        self.assertEqual(list(User.objects.get(decidim_id=7).proposal_set.values_list('id_proposal', flat=True)), [2])
+
+    def test_reloading_is_idempotent(self):
+        proposals = [proposal_row(1, 'Ana, Bob')]
+        comments = [comment_row(10, 7, 'Ana', 1), comment_row(11, 8, 'Cat', 1)]
+        for _ in range(2):
+            self.load_proposals(proposals)
+            self.load_comments(comments)
+        self.assertEqual(sorted(User.objects.values_list('name', flat=True)), ['Ana', 'Bob', 'Cat'])
+
+    def test_renamed_commenter_keeps_one_record(self):
+        self.load_proposals([proposal_row(1)])
+        self.load_comments([comment_row(10, 7, 'Ana', 1)])
+        self.load_comments([comment_row(10, 7, 'Ana Puig', 1)])
+        self.assertEqual(list(User.objects.values_list('decidim_id', 'name')), [(7, 'Ana Puig')])
+
+    def test_comments_without_author_go_to_one_ambiguous_record(self):
+        self.load_proposals([proposal_row(1)])
+        self.load_comments([comment_row(10, '', '', 1), comment_row(11, '', '', 1)])
+        unknown = User.objects.get()
+        self.assertTrue(unknown.ambiguous)
+        self.assertEqual(unknown.comment_set.count(), 2)
+
+    def test_ambiguous_users_are_left_out_of_the_networks(self):
+        from stats.networks import comment_memberships, compute_network, endorsement_memberships
+        self.load_proposals([proposal_row(1, 'Joan, Joan, Pau'), proposal_row(2)])
+        self.load_comments([comment_row(10, '', '', 2), comment_row(11, 3, 'Pau', 2)])
+        joan, unknown = User.objects.get(name='Joan'), User.objects.get(name='[unknown author]')
+        self.assertNotIn(joan.id, endorsement_memberships())
+        self.assertNotIn(unknown.id, comment_memberships())
+        self.assertIn(User.objects.get(name='Pau').id, comment_memberships())
+        self.assertEqual(compute_network('endorsements')['parameters']['n_ambiguous_users_excluded'], 2)

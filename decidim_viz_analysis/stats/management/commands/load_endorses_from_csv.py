@@ -1,10 +1,12 @@
 import csv
+from collections import Counter
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from stats.csv_utils import blank_to_none, parse_datetime, split_names
-from stats.models import Category, Proposal, User
+from stats.models import Category, Proposal
+from stats.users import UserResolver
 
 
 class Command(BaseCommand):
@@ -15,7 +17,7 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
-        users_by_name = {user.name: user for user in User.objects.all()}
+        users = UserResolver()
 
         with open(options['csv_path'], 'r', encoding='utf-8') as file:
             for row in csv.DictReader(file, delimiter=';'):
@@ -36,13 +38,15 @@ class Command(BaseCommand):
                     },
                 )
 
-                for name in endorsers:
-                    if name not in users_by_name:
-                        users_by_name[name] = User.objects.create(name=name)
-                proposal.users.add(*(users_by_name[name] for name in endorsers))
+                # The same name twice on one proposal means two different people.
+                for name, count in Counter(endorsers).items():
+                    if count > 1:
+                        users.mark_ambiguous(name)
+                proposal.users.add(*{users.endorser(name) for name in endorsers})
 
+        users.reconcile()
         self.stdout.write('There are {} proposals!'.format(Proposal.objects.count()))
-        self.stdout.write('There are {} users!'.format(User.objects.count()))
+        self.stdout.write(users.summary())
 
     @staticmethod
     def _category(row):
