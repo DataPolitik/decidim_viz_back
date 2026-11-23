@@ -1,12 +1,10 @@
-Note: As future.eu is not longer active, Decidim.viz is not working anymore. Nevertheless, the code can be usted to retrieve data from others Decidim instances.
-
 # Decidim Viz - Back
 
-This repository contains the back-end part of Decidim.viz (http://viz.platoniq.net/). This projects aims to develop a dashboard to extract data from Decidim instances (https://meta.decidim.org/). 
+This repository contains the back-end part of Decidim.viz, a dashboard of visualizations and statistics for a Decidim instance (https://decidim.org/). The front end is [decidim_viz_front](https://github.com/DataPolitik/decidim_viz_front).
+
+Decidim.viz was first built for futureu.europa.eu, the platform of the Conference on the Future of Europe, which is no longer online. It works with any Decidim instance: import that instance's open-data exports (see [Executing](#executing)). It has been tested with the exports of [meta.decidim.org](https://meta.decidim.org/), and reads both older (0.26/0.27) and newer export formats.
 
 ## What is Decidim.viz? 
-
-This repository contains the front-end part of Decidim.viz (http://viz.platoniq.net/). This projects aims to develop a dashboard to extract data from Decidim instances (https://meta.decidim.org/). 
 
 Decidim.viz is a dashboard for an instance of Decidim. The objective of Decidim.viz is to provide useful visualizations, metrics and statistical information to interested people.
 
