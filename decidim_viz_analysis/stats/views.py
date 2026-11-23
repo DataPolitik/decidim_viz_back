@@ -219,6 +219,10 @@ def get_temporal_limits(request):
     return JsonResponse(statistics.temporal_limits())
 
 
+def get_summary(request):
+    return JsonResponse(statistics.summary())
+
+
 def get_participation_types(request):
     return JsonResponse(statistics.participation_types())
 

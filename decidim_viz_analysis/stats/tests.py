@@ -565,6 +565,10 @@ class StatisticsEndpointTests(TestCase):
             'proposals_from': '2022-01-01T10:00:00+00:00', 'proposals_to': '2022-01-03T10:00:00+00:00',
             'comments_from': '2022-01-01T13:00:00+00:00', 'comments_to': '2022-01-05T10:00:00+00:00'})
 
+    def test_summary(self):
+        # Ana and Bob comment, Ana and Cat endorse; Dan and the ambiguous record do not count.
+        self.assertEqual(self.get('/stats/summary'), {'participants': 3, 'proposals': 3, 'comments': 4})
+
     def test_participation_types_exclude_ambiguous_records(self):
         self.assertEqual(self.get('/stats/users/active_proportion'),
                          {'comments': 1, 'endorsements': 1, 'all': 1, 'inactive': 1})  # Bob, Cat, Ana, Dan

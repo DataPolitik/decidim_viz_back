@@ -11,6 +11,7 @@ urlpatterns = [
     path('comments/colors', views.comments_colors, name='comments_colors'),
     path('endorsements/colors', views.endorsements_colors, name='endorsements_colors'),
     path('dates', views.get_temporal_limits, name='temporal_limits'),
+    path('summary', views.get_summary, name='summary'),
     path('users/active_proportion', views.get_participation_types, name='participation_types'),
     path('users/by_comments/<int:limit>', views.get_users_by_comments, name='users_by_comments'),
     path('comments/length', views.get_comments_length, name='comments_length'),

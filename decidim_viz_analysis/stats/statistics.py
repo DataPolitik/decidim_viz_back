@@ -6,7 +6,7 @@ which stand for several people or for unknown authors.
 from collections import Counter
 
 import numpy as np
-from django.db.models import Count, Max, Min
+from django.db.models import Count, Max, Min, Q
 
 from stats.models import Comment, Proposal, User
 
@@ -60,6 +60,17 @@ def temporal_limits():
         'proposals_to': iso(proposals['last']),
         'comments_from': iso(comments['first']),
         'comments_to': iso(comments['last']),
+    }
+
+
+def summary():
+    """Headline counts: people who commented or endorsed, proposals and comments."""
+    participants = _people().filter(Q(id__in=_comments().values('author_id')) |
+                                    Q(id__in=Proposal.users.through.objects.values('user_id')))
+    return {
+        'participants': participants.count(),
+        'proposals': Proposal.objects.count(),
+        'comments': Comment.objects.count(),
     }
 
 
