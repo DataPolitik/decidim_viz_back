@@ -800,3 +800,26 @@ class RefreshFromOpenDataTests(TestCase):
         with self.assertRaisesMessage(CommandError, 'No proposals CSV'):
             call_command('refresh_from_open_data', self.make_zip(with_proposals=False),
                          stdout=io.StringIO(), stderr=io.StringIO())
+
+
+class SecretKeyFileTests(TestCase):
+    def test_secret_key_read_from_a_file(self):
+        import importlib
+        from decidim_viz_analysis import settings as project_settings
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        key_file = os.path.join(tmp.name, 'secret')
+        with open(key_file, 'w') as f:
+            f.write('from-a-file\n')
+        saved = {k: os.environ.get(k) for k in ('DJANGO_SECRET_KEY', 'DJANGO_SECRET_KEY_FILE', 'DJANGO_DEBUG')}
+        os.environ.pop('DJANGO_SECRET_KEY', None)
+        os.environ.update(DJANGO_SECRET_KEY_FILE=key_file, DJANGO_DEBUG='0')
+        try:
+            self.assertEqual(importlib.reload(project_settings).SECRET_KEY, 'from-a-file')
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+            importlib.reload(project_settings)

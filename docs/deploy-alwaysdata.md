@@ -97,11 +97,19 @@ mkdir -p ~/data/cache
 
 ## 4. Settings
 
-Create `~/decidim_viz.env` (one `NAME=value` per line):
+Keep the Django secret key in a file of its own, so it never appears in the
+admin panel:
+
+```
+umask 077
+venv/bin/python -c "import secrets; print(secrets.token_urlsafe(50))" > ~/.decidim_viz_secret_key
+```
+
+Create `~/decidim_viz.env` (one `NAME=value` per line, `chmod 600`):
 
 ```
 DJANGO_DEBUG=0
-DJANGO_SECRET_KEY=<a long random string>
+DJANGO_SECRET_KEY_FILE=/home/<account>/.decidim_viz_secret_key
 DJANGO_ALLOWED_HOSTS=<account>.alwaysdata.net
 DJANGO_DB_PATH=/home/<account>/data/db.sqlite3
 DECIDIM_VIZ_CACHE_DIR=/home/<account>/data/cache
@@ -110,8 +118,7 @@ OPENBLAS_NUM_THREADS=1
 ```
 
 `OPENBLAS_NUM_THREADS=1` keeps NumPy/SciPy from reserving memory for many
-threads. A secret key can be made with
-`venv/bin/python -c "import secrets; print(secrets.token_urlsafe(50))"`.
+threads.
 
 ## 5. Create the database and load the data
 
@@ -129,15 +136,19 @@ you want to show; it can also take a local zip file.
 
 ## 6. Create the site
 
-In **Web › Sites › Add a site**:
+In **Web › Sites**, edit the default site of `<account>.alwaysdata.net` (or add
+one). The three paths are relative to your home directory: write them without
+`/home/<account>/`, or uWSGI looks for `/home/<account>/home/<account>/...` and
+the site answers 502.
 
 - **Type:** Python WSGI
 - **Addresses:** `<account>.alwaysdata.net`
-- **Application path:** `/home/<account>/decidim_viz_back/decidim_viz_analysis/decidim_viz_analysis/wsgi.py`
-- **Working directory:** `/home/<account>/decidim_viz_back/decidim_viz_analysis`
-- **Virtualenv directory:** `/home/<account>/decidim_viz_back/venv`
+- **Application path:** `decidim_viz_back/decidim_viz_analysis/decidim_viz_analysis/wsgi.py`
+- **Working directory:** `decidim_viz_back/decidim_viz_analysis`
+- **Virtualenv directory:** `decidim_viz_back/venv`
 - **Python version:** 3.13
-- **Environment:** the lines of `~/decidim_viz.env`
+- **Environment variables:** the lines of `~/decidim_viz.env` on one line,
+  separated by spaces (`DJANGO_DEBUG=0 DJANGO_SECRET_KEY_FILE=... ...`)
 
 Open `https://<account>.alwaysdata.net/`: the bar under the menu should say
 "Data from meta.decidim.org". The API answers at
@@ -152,7 +163,10 @@ Monday at 04:00 (`0 4 * * 1`; shortcuts like `@weekly` are not accepted):
 cd /home/<account>/decidim_viz_back/decidim_viz_analysis && set -a && . /home/<account>/decidim_viz.env && set +a && /home/<account>/decidim_viz_back/venv/bin/python manage.py refresh_from_open_data https://meta.decidim.org
 ```
 
-The site picks up new data on the next request; no restart is needed. A report
+The site picks up new data on the next request; no restart is needed. The
+import adds and updates but never removes: proposals, comments and endorsements
+that later disappear from the export (withdrawn, deleted or hidden) stay in the
+database. A report
 is mailed when the task fails (non-zero exit), if you add an address to it.
 
 ## Logs
@@ -173,15 +187,7 @@ cd decidim_viz_analysis && set -a && . ~/decidim_viz.env && set +a
 Then click **Restart** on the site (Web › Sites). For a new front end, build it
 again (step 1) and replace `~/frontend` (keep your `assets/config.json`).
 
-## Not verified on alwaysdata
+## Tested
 
-These steps follow alwaysdata's documentation and were tested end to end on a
-local machine with the same settings (single site, `DEBUG=0`, refresh from
-meta.decidim.org). Two details could not be confirmed from the documentation
-and may need adjusting in the admin forms:
-
-- whether **Application path** expects the path to `wsgi.py` (as above) or a
-  module (`decidim_viz_analysis.wsgi:application`, with the working directory
-  above);
-- the exact format of the **Environment** field (`NAME=value` per line is
-  assumed).
+This setup runs at https://decidimviz.alwaysdata.net (free plan, Python 3.13,
+data from meta.decidim.org).

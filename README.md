@@ -26,7 +26,8 @@ Settings live in `decidim_viz_analysis/decidim_viz_analysis/settings.py` and are
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `DJANGO_SECRET_KEY` | dev-only key | Required when `DJANGO_DEBUG=0` |
+| `DJANGO_SECRET_KEY` | dev-only key | Required when `DJANGO_DEBUG=0` (or use `DJANGO_SECRET_KEY_FILE`) |
+| `DJANGO_SECRET_KEY_FILE` | unset | Path of a file holding the secret key, instead of the key itself |
 | `DJANGO_DEBUG` | `1` | Set to `0` in production |
 | `DJANGO_ALLOWED_HOSTS` | `localhost,127.0.0.1` | Comma-separated |
 | `DJANGO_CORS_ORIGINS` | empty (all origins allowed in debug) | Origin(s) of the front end |

@@ -4,7 +4,8 @@ Django settings for decidim_viz_analysis.
 Everything deployment-specific is read from environment variables so that no
 secret has to be committed. Defaults are meant for local development only.
 
-    DJANGO_SECRET_KEY      required when DJANGO_DEBUG is off
+    DJANGO_SECRET_KEY      required when DJANGO_DEBUG is off (or DJANGO_SECRET_KEY_FILE)
+    DJANGO_SECRET_KEY_FILE path of a file holding the secret key, instead of the key itself
     DJANGO_DEBUG           "1" (default) or "0"
     DJANGO_ALLOWED_HOSTS   comma-separated, e.g. "viz.example.org,localhost"
     DJANGO_CORS_ORIGINS    comma-separated origins of the front end,
@@ -29,9 +30,12 @@ def _env_list(name, default=''):
 DEBUG = os.environ.get('DJANGO_DEBUG', '1') == '1'
 
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
+if not SECRET_KEY and os.environ.get('DJANGO_SECRET_KEY_FILE'):
+    # Keeps the key out of the environment and of hosting control panels.
+    SECRET_KEY = Path(os.environ['DJANGO_SECRET_KEY_FILE']).read_text(encoding='utf-8').strip()
 if not SECRET_KEY:
     if not DEBUG:
-        raise RuntimeError('Set DJANGO_SECRET_KEY when DJANGO_DEBUG=0')
+        raise RuntimeError('Set DJANGO_SECRET_KEY or DJANGO_SECRET_KEY_FILE when DJANGO_DEBUG=0')
     SECRET_KEY = 'insecure-development-key-do-not-use-in-production'
 
 ALLOWED_HOSTS = _env_list('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1')
