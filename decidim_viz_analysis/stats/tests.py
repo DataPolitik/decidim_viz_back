@@ -635,3 +635,46 @@ class ProposalTitleAndLinkTests(TestCase):
                          [(1, 'Només en català', ''), (2, 'In English', 'En castellano')])
         self.assertEqual(self.client.get('/stats/proposal/1').json()['title'], 'Només en català')
         self.assertEqual(Proposal(id_proposal=9).display_title, '#9')
+
+
+class NodeOverlapTests(TestCase):
+    def assert_no_overlaps(self, positions, d):
+        from scipy.spatial import cKDTree
+        xy = np.array(list(positions.values()))
+        self.assertEqual(len(cKDTree(xy).query_pairs(d * (1 - 1e-6))), 0)
+        self.assertLessEqual(np.linalg.norm(xy, axis=1).max(), 1 + 1e-9)
+
+    def test_clustered_nodes_are_spread_out(self):
+        from stats.phi.phi import MIN_NODE_DISTANCE, remove_overlaps
+        rng = np.random.default_rng(0)
+        positions = {i: (rng.normal(0, 0.01, 2) + [0.3, 0.2]).tolist() for i in range(60)}
+        self.assert_no_overlaps(remove_overlaps(positions), MIN_NODE_DISTANCE)
+
+    def test_separated_nodes_do_not_move(self):
+        from stats.phi.phi import remove_overlaps
+        positions = {'a': [0.0, 0.0], 'b': [0.5, 0.0], 'c': [0.0, -0.5]}
+        self.assertEqual(remove_overlaps(positions), positions)
+
+    def test_identical_positions_are_separated(self):
+        from stats.phi.phi import MIN_NODE_DISTANCE, remove_overlaps
+        self.assert_no_overlaps(remove_overlaps({i: [0.1, 0.1] for i in range(5)}), MIN_NODE_DISTANCE)
+
+    def test_dense_layouts_still_fit_in_the_disc(self):
+        from stats.phi.phi import min_node_distance, remove_overlaps
+        rng = np.random.default_rng(1)
+        angle, radius = rng.uniform(0, 2 * np.pi, 3000), np.sqrt(rng.uniform(0, 1, 3000))
+        positions = {i: [r * np.cos(a), r * np.sin(a)] for i, (a, r) in enumerate(zip(angle, radius))}
+        d = min_node_distance(3000)
+        self.assertLess(d, 0.06)  # spacing reduced so that 3000 nodes fit
+        self.assert_no_overlaps(remove_overlaps(positions), d)
+
+    def test_layout_of_a_real_network_has_no_overlaps(self):
+        # Regression: on meta.decidim.org's endorsements network, 26 pairs of drawn nodes overlapped.
+        from stats.phi.phi import MIN_NODE_DISTANCE, network_layout
+        import networkx as nx
+        graph = nx.complete_graph(30)  # a dense clique: the spring layout bunches it up
+        graph.add_edges_from((i, i + 1) for i in range(30, 60))
+        nx.set_edge_attributes(graph, 0.9, 'phi')
+        positions, layout = network_layout(graph, [set(range(30)), set(range(30, 61))], seed=3)
+        self.assertEqual(layout, 'spring')
+        self.assert_no_overlaps(positions, MIN_NODE_DISTANCE)

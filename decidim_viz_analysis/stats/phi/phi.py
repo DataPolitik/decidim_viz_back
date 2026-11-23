@@ -193,6 +193,8 @@ def build_network(memberships, n_proposals, usernames, alpha=DEFAULT_ALPHA, corr
             'correction': correction,
             'seed': seed,
             'layout': layout,
+            # Spacing kept between drawn nodes, in layout units; the front end sizes markers from it.
+            'min_node_distance': float(min_node_distance(sum(1 for node in graph if graph.degree(node) > 0))),
         },
     }
 
@@ -228,6 +230,56 @@ def network_layout(graph, communities, seed=DEFAULT_SEED):
     # unit disc to keep the connected users inside the ring of isolated ones.
     furthest = max((x * x + y * y) ** 0.5 for x, y in spring.values()) or 1.0
     positions = {node: [float(x) / furthest, float(y) / furthest] for node, (x, y) in spring.items()}
+    positions = remove_overlaps(positions)
     if isolated:
         positions.update(_ring(isolated, 1.25))
     return positions, 'spring'
+
+
+# Minimum distance between drawn nodes, in layout units (the connected users
+# fill the unit disc). The front end draws 8 px markers, and the disc is often
+# only ~375 px across (~190 px per unit), so 0.06 leaves ~11 px between centres.
+MIN_NODE_DISTANCE = 0.06
+
+
+def min_node_distance(n):
+    """The spacing used for n nodes: MIN_NODE_DISTANCE, reduced when n nodes at
+    that spacing would be too crowded in the unit disc. 1.3 / sqrt(n) uses about
+    half of the densest (hexagonal) packing, which remove_overlaps settles
+    quickly (5000 random nodes in under a second); it applies above ~470 nodes."""
+    return min(MIN_NODE_DISTANCE, 1.3 / np.sqrt(max(n, 1)))
+
+
+def remove_overlaps(positions, iterations=500):
+    """Push apart nodes closer than min_node_distance, keeping them in the unit disc.
+
+    Each pass moves both nodes of every too-close pair apart by half the
+    shortfall, then pulls any node that left the disc back onto its edge.
+    Movements are small, so the force-directed structure is kept. Deterministic.
+    """
+    nodes = list(positions)
+    if len(nodes) < 2:
+        return positions
+    from scipy.spatial import cKDTree
+
+    xy = np.array([positions[node] for node in nodes], dtype=float)
+    d = min_node_distance(len(nodes))
+    for _ in range(iterations):
+        pairs = cKDTree(xy).query_pairs(d * (1 - 1e-9), output_type='ndarray')
+        if len(pairs) == 0:
+            break
+        i, j = pairs[:, 0], pairs[:, 1]
+        delta = xy[i] - xy[j]
+        dist = np.linalg.norm(delta, axis=1)
+        # Coincident nodes: separate them along a direction that depends on their indices.
+        same = dist < 1e-12
+        angle = (i[same] * 7919 + j[same] * 104729) % 360 * pi / 180
+        delta[same] = np.column_stack((np.cos(angle), np.sin(angle)))
+        dist[same] = 1.0
+        push = ((d - np.where(same, 0.0, dist)) / 2 * 1.01)[:, None] * delta / dist[:, None]
+        np.add.at(xy, i, push)
+        np.add.at(xy, j, -push)
+        radius = np.linalg.norm(xy, axis=1)
+        outside = radius > 1
+        xy[outside] /= radius[outside, None]
+    return {node: [float(x), float(y)] for node, (x, y) in zip(nodes, xy)}
