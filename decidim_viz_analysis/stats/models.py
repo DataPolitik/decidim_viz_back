@@ -36,6 +36,8 @@ class Comment(models.Model):
     reply_to = models.ForeignKey('self', on_delete=models.CASCADE, null=True, related_name='replies')
     proposal_replied = models.ForeignKey(to='stats.Proposal', on_delete=models.CASCADE)
     depth = models.IntegerField(primary_key=False, null=False, default=0)
+    # Length in characters of the comment text (the text itself is not stored).
+    body_length = models.IntegerField(null=True)
 
     class Meta:
         ordering = ['id_comment']

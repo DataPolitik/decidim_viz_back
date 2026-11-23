@@ -504,3 +504,101 @@ class LayoutTests(TestCase):
         positions, layout = phi.network_layout(big, [set(range(12))])
         self.assertEqual(layout, 'circular')
         self.assertEqual(len(positions), 12)
+
+
+class GiniTests(TestCase):
+    def test_known_value_and_contributions(self):
+        from stats.statistics import gini
+        value, contributions = gini([0, 0, 0, 1])
+        self.assertAlmostEqual(value, 0.75)
+        self.assertEqual([round(c, 6) for c in contributions], [0.125, 0.125, 0.125, 0.375])
+
+    def test_matches_the_definition(self):
+        from stats.statistics import gini
+        rng = np.random.default_rng(3)
+        x = rng.integers(0, 20, size=37).astype(float)
+        n, mean = len(x), x.mean()
+        expected = [np.abs(xi - x).sum() / (2 * n * n * mean) for xi in x]
+        value, contributions = gini(x)
+        np.testing.assert_allclose(contributions, expected)
+        self.assertAlmostEqual(value, sum(expected))
+
+    def test_degenerate_inputs(self):
+        from stats.statistics import gini
+        self.assertEqual(gini([]), (0.0, []))
+        self.assertEqual(gini([0, 0]), (0.0, [0.0, 0.0]))
+        self.assertEqual(gini([5, 5, 5])[0], 0.0)
+
+
+class StatisticsEndpointTests(TestCase):
+    """Proposals 1-3; Ana comments twice on 1 and endorses 2; Bob comments once
+    on 1 (a reply); Cat only endorses; Dan does nothing; an ambiguous record
+    comments on 3."""
+
+    def setUp(self):
+        utc = timezone.utc
+        self.ana, self.bob, self.cat, self.dan = (User.objects.create(name=n, decidim_id=i)
+                                                 for i, n in enumerate(('Ana', 'Bob', 'Cat', 'Dan'), 1))
+        ghost = User.objects.create(name='[unknown author]', ambiguous=True)
+        p1, p2, p3 = (Proposal.objects.create(id_proposal=i, proposal_title_en='P{}'.format(i),
+                                              proposal_title_es='', proposal_title_fr='',
+                                              published_at=datetime(2022, 1, i, 10, tzinfo=utc),
+                                              endorsements=e)
+                      for i, e in ((1, 0), (2, 2), (3, 0)))
+        p2.users.add(self.ana, self.cat)
+        c10 = Comment.objects.create(id_comment=10, author=self.ana, proposal_replied=p1, body_length=40,
+                                     created_at=datetime(2022, 1, 1, 13, tzinfo=utc))
+        Comment.objects.create(id_comment=11, author=self.bob, proposal_replied=p1, depth=1, reply_to=c10,
+                               body_length=5, created_at=datetime(2022, 1, 2, 10, tzinfo=utc))
+        Comment.objects.create(id_comment=12, author=self.ana, proposal_replied=p1, body_length=None,
+                               created_at=datetime(2022, 1, 5, 10, tzinfo=utc))
+        Comment.objects.create(id_comment=13, author=ghost, proposal_replied=p3, body_length=7,
+                               created_at=datetime(2022, 1, 2, 10, tzinfo=utc))  # 23h before p3 was published
+
+    def get(self, url):
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200, url)
+        return response.json()
+
+    def test_dates(self):
+        self.assertEqual(self.get('/stats/dates'), {
+            'proposals_from': '2022-01-01T10:00:00+00:00', 'proposals_to': '2022-01-03T10:00:00+00:00',
+            'comments_from': '2022-01-01T13:00:00+00:00', 'comments_to': '2022-01-05T10:00:00+00:00'})
+
+    def test_participation_types_exclude_ambiguous_records(self):
+        self.assertEqual(self.get('/stats/users/active_proportion'),
+                         {'comments': 1, 'endorsements': 1, 'all': 1, 'inactive': 1})  # Bob, Cat, Ana, Dan
+
+    def test_users_by_comments(self):
+        data = self.get('/stats/users/by_comments/1')
+        self.assertEqual(data['comments'], [{'id': str(self.ana.id), 'name': 'Ana', 'comments': 2}])
+        # Population: Ana 2, Bob 1 -> G = 2 * 1 / (2 * 4 * 1.5)
+        self.assertAlmostEqual(data['gini']['value'], 1 / 6)
+        self.assertEqual(len(data['gini']['contributions']), 1)
+
+    def test_box_data(self):
+        self.assertEqual(sorted(self.get('/stats/comments/length')['box_data']), [5, 7, 40])
+        self.assertEqual(sorted(self.get('/stats/comments/depth')['box_data']), [0, 0, 0, 1])
+        self.assertEqual(sorted(self.get('/stats/comments/per_user')['box_data']), [1, 2])
+        # p1: published 10:00, first comment 13:00; p3's comment predates it and is left out.
+        self.assertEqual(self.get('/stats/proposals/responses/first/time/')['box_data'], [3.0])
+
+    def test_proposals_with_and_without_comments(self):
+        self.assertEqual(self.get('/stats/proposals/responses/comments/count'), {'0': 1, '>0': 2})
+
+    def test_rankings_include_gini(self):
+        data = self.get('/stats/proposals/supports/2')
+        self.assertAlmostEqual(data['gini']['value'], 2 / 3)  # endorsements 0, 2, 0
+        self.assertEqual(len(data['gini']['contributions']), 2)
+        self.assertIn('gini', self.get('/stats/proposals/comments/2'))
+        self.assertIn('gini', self.get('/stats/categories/proposals/2'))
+        self.assertIn('gini', self.get('/stats/categories/comments/'))
+
+    def test_comment_length_is_imported(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        columns = COMMENT_COLUMNS + ['body']
+        rows = [dict(comment_row(20, 1, 'Ana', 1), body='Hola, món')]
+        call_command('load_comments_from_csv', write_csv(tmp.name, 'c.csv', columns, rows),
+                     stdout=io.StringIO(), stderr=io.StringIO())
+        self.assertEqual(Comment.objects.get(id_comment=20).body_length, 9)

@@ -4,6 +4,7 @@ from django.db.models import Count
 from django.db.models.functions import TruncDay, TruncMonth, TruncYear
 
 from django.http import HttpResponse, JsonResponse
+from stats import statistics
 from stats.models import Proposal, User, Comment, Category
 from stats.networks import community_colors, get_network
 
@@ -119,6 +120,8 @@ def get_proposals_by_supports(request, limit):
                 'category': proposal.category.pk if proposal.category is not None else ''
             }
         )
+    response['gini'] = statistics.gini_for(dict(Proposal.objects.values_list('id_proposal', 'endorsements')),
+                                           [p['id'] for p in response['proposals']])
     return JsonResponse(response)
 
 
@@ -146,6 +149,8 @@ def get_proposals_by_comments(request, limit):
                 'comments': proposal.num_comments
             }
         )
+    comment_counts = dict(Proposal.objects.annotate(n=Count('comment')).values_list('id_proposal', 'n'))
+    response['gini'] = statistics.gini_for(comment_counts, [p['id'] for p in response['proposals']])
     return JsonResponse(response)
 
 
@@ -175,6 +180,8 @@ def get_categories_by_proposals(request, limit):
              'categories': category.num_proposals
             }
         )
+    proposal_counts = dict(Category.objects.annotate(n=Count('proposal')).values_list('id', 'n'))
+    response['gini'] = statistics.gini_for(proposal_counts, [c['id'] for c in response['categories']])
     return JsonResponse(response)
 
 
@@ -200,7 +207,44 @@ def get_categories_by_comments(request):
             }
         )
     response['categories'] = sorted(response['categories'], key=lambda d: d['comments'], reverse=True)
+    all_categories = {category_id: categories.get(category_id, 0)
+                      for category_id in Category.objects.values_list('id', flat=True)}
+    response['gini'] = statistics.gini_for(all_categories, [c['id'] for c in response['categories']])
     return JsonResponse(response)
+
+
+# Endpoints used by the Statistics and Activity pages; see stats/statistics.py.
+
+def get_temporal_limits(request):
+    return JsonResponse(statistics.temporal_limits())
+
+
+def get_participation_types(request):
+    return JsonResponse(statistics.participation_types())
+
+
+def get_users_by_comments(request, limit):
+    return JsonResponse(statistics.top_commenters(limit))
+
+
+def get_comments_length(request):
+    return JsonResponse({'box_data': statistics.comment_lengths()})
+
+
+def get_comments_depth(request):
+    return JsonResponse({'box_data': statistics.comment_depths()})
+
+
+def get_comments_per_user(request):
+    return JsonResponse({'box_data': list(statistics.comments_per_user().values())})
+
+
+def get_proposals_comments_count(request):
+    return JsonResponse(statistics.proposals_with_and_without_comments())
+
+
+def get_hours_to_first_comment(request):
+    return JsonResponse({'box_data': statistics.hours_to_first_comment()})
 
 
 def get_num_comments_per_language(request):

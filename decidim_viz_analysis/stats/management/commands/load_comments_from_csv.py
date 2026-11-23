@@ -55,6 +55,8 @@ class Command(BaseCommand):
                     'created_at': parse_datetime(row.get('created_at')),
                     'reply_to': parent,
                     'proposal_replied': proposal,
+                    # Only the length of the text is kept.
+                    'body_length': len(row['body']) if row.get('body') is not None else None,
                 },
             )
             proposal.comments.add(comment)
