@@ -173,8 +173,12 @@ cd decidim_viz_analysis && set -a && . ~/decidim_viz.env && set +a
 ../venv/bin/python manage.py refresh_from_open_data https://meta.decidim.org
 ```
 
-Then restart the site. For a new front end, build it again (step 1) and replace
-`~/frontend` (keep your `assets/config.json`).
+Then restart the site. For a new front end, build it again (step 1), upload it
+next to the live copy (e.g. `~/frontend.new`), copy your `assets/config.json`
+into it, then swap the two directories and restart the site straight away.
+WhiteNoise lists the front-end files when the site starts: until the restart,
+the new `index.html` asks for a bundle the site doesn't know, and the dashboard
+stays blank.
 
 ## Example: alwaysdata
 
@@ -200,7 +204,8 @@ name:
 - **Weekly refresh:** **Advanced › Scheduled tasks**, type "Execute the
   command", crontab syntax `0 4 * * 1` (shortcuts like `@weekly` are not
   accepted). A report is mailed when the task fails if you add an address.
-- **Restart** after an update: the Restart button in **Web › Sites**.
+- **Restart** after an update: the Restart button in **Web › Sites**. Touching
+  `wsgi.py` does not restart the site.
 - **Logs:** `~/admin/logs/uwsgi/<site id>.log` for the site,
   `~/admin/logs/jobs/` for scheduled tasks.
 - Idle sites are stopped after 30 minutes, so the first visit after a pause
