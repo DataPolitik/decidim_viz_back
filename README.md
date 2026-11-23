@@ -58,7 +58,7 @@ Run `python manage.py test` to run the tests.
 
 ## Deploying
 
-[docs/deploy-alwaysdata.md](docs/deploy-alwaysdata.md) deploys the whole dashboard (front end included) as one site on alwaysdata's free plan, with a weekly data refresh. The same setup (one Django site with `DECIDIM_VIZ_FRONTEND_DIR`, plus a scheduled `refresh_from_open_data`) works on any host that runs Python.
+[docs/deploy.md](docs/deploy.md) deploys the whole dashboard (front end included) as one Django site with `DECIDIM_VIZ_FRONTEND_DIR`, plus a weekly `refresh_from_open_data`, on any host that runs Python. It includes alwaysdata's free plan as a worked example.
 
 ## User matching
 

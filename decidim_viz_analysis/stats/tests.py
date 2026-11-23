@@ -711,7 +711,7 @@ class FrontendServingTests(TestCase):
         with open(os.path.join(self.tmp.name, 'index.html'), 'w') as f:
             f.write('<html>dashboard</html>')
         with open(os.path.join(self.tmp.name, 'assets', 'config.json'), 'w') as f:
-            f.write('{"host": "https://x.alwaysdata.net"}')
+            f.write('{"host": "https://viz.example.org"}')
         middleware = list(settings.MIDDLEWARE)
         middleware.insert(middleware.index('django.middleware.security.SecurityMiddleware') + 1,
                           'whitenoise.middleware.WhiteNoiseMiddleware')
@@ -730,7 +730,7 @@ class FrontendServingTests(TestCase):
         response.close()
         config = self.client.get('/assets/config.json')
         self.assertEqual(config.status_code, 200)
-        self.assertIn(b'alwaysdata', b''.join(config.streaming_content))
+        self.assertIn(b'viz.example.org', b''.join(config.streaming_content))
         config.close()  # release the file (Windows cannot delete open files)
         self.assertEqual(self.client.get('/stats/summary').json(), {'participants': 0, 'proposals': 0, 'comments': 0})
 
