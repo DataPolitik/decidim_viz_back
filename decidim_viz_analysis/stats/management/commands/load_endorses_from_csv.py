@@ -1,54 +1,85 @@
 import csv
-from datetime import datetime
+from collections import Counter
 
 from django.core.management.base import BaseCommand
+from django.db import transaction
 
-from stats.models import Proposal, User, Category
+from stats.csv_utils import blank_to_none, first_filled, parse_datetime, split_names
+from stats.models import Category, Proposal
+from stats.users import UserResolver
 
 
 class Command(BaseCommand):
-    help = 'Import data from csv file into the SQL database.'
+    help = 'Import proposals and their endorsements from a Decidim proposals CSV export (";"-separated).'
 
     def add_arguments(self, parser):
         parser.add_argument('csv_path', type=str)
 
+    @transaction.atomic
     def handle(self, *args, **options):
-        csv_path = options['csv_path']
+        users = UserResolver()
 
-        with open(csv_path, 'r', encoding='utf-8') as file:
-            reader = csv.DictReader(file, delimiter=';')
+        with open(options['csv_path'], 'r', encoding='utf-8') as file:
+            for row in csv.DictReader(file, delimiter=';'):
+                # Endorsements were renamed "likes" in newer Decidim versions.
+                endorsers = split_names(first_filled(row, ('endorsements/user_endorsements', 'likes/user_likes')))
 
-            for row in reader:
-                proposal_to_add = Proposal()
-                proposal_to_add.id_proposal = row['id']
-                proposal_to_add.proposal_title_es = row['title/machine_translations/es']
-                proposal_to_add.proposal_title_en = row['title/machine_translations/en']
-                proposal_to_add.proposal_title_fr = row['title/machine_translations/fr']
-                proposal_to_add.url = row['participatory_space/url']
-                proposal_to_add.latitude = row['latitude']
-                proposal_to_add.longitude = row['longitude']
-                proposal_to_add.published_at = datetime.strptime(row['published_at'], '%Y-%m-%d %H:%M:%S %Z')
-                proposal_to_add.endorsements = len(row['endorsements/user_endorsements'].split(','))
-                if row['category/id'] != '':
-                    if Category.objects.filter(id=row['category/id']).exists():
-                        proposal_to_add.category = Category.objects.get(id=row['category/id'])
-                    else:
-                        category_to_add = Category(id=row['category/id'])
-                        category_to_add.name_es = row['category/name/es']
-                        category_to_add.name_en = row['category/name/en']
-                        category_to_add.save()
-                        proposal_to_add.category = category_to_add
-                proposal_to_add.save()
+                proposal, _ = Proposal.objects.update_or_create(
+                    id_proposal=int(row['id']),
+                    defaults={
+                        'proposal_title_es': self._title(row, 'es'),
+                        'proposal_title_en': self._title(row, 'en'),
+                        'proposal_title_fr': self._title(row, 'fr'),
+                        'proposal_title': self._original_title(row),
+                        # The proposal's own page; older exports may only have the space's.
+                        'url': blank_to_none(first_filled(row, ('url', 'participatory_space/url'))),
+                        'latitude': blank_to_none(row.get('latitude')),
+                        'longitude': blank_to_none(row.get('longitude')),
+                        'published_at': parse_datetime(row.get('published_at')),
+                        'endorsements': len(endorsers),
+                        'category': self._category(row),
+                    },
+                )
 
-                users = row['endorsements/user_endorsements'].split(',')
-                for user in users:
-                    user_trimmed = user.strip()
-                    if len(user_trimmed) > 0:
-                        if not User.objects.filter(name=user_trimmed).exists():
-                            user_to_add = User()
-                            user_to_add.name = user_trimmed
-                            user_to_add.save()
-                            proposal_to_add.users.add(user_to_add)
+                # The same name twice on one proposal means two different people.
+                for name, count in Counter(endorsers).items():
+                    if count > 1:
+                        users.mark_ambiguous(name)
+                proposal.users.add(*{users.endorser(name) for name in endorsers})
 
+        users.reconcile()
         self.stdout.write('There are {} proposals!'.format(Proposal.objects.count()))
-        self.stdout.write('There are {} users!'.format(User.objects.count()))
+        self.stdout.write(users.summary())
+
+    @staticmethod
+    def _original_title(row):
+        # Any title/<language> column holds text as written; fall back to machine translations.
+        written = [c for c in row if c.startswith('title/') and not c.startswith('title/machine_translations/')]
+        translated = [c for c in row if c.startswith('title/machine_translations/')]
+        return first_filled(row, written + translated)
+
+    @staticmethod
+    def _title(row, language):
+        # Text written in that language, else Decidim's machine translation.
+        return first_filled(row, ('title/{}'.format(language), 'title/machine_translations/{}'.format(language)))
+
+    @staticmethod
+    def _category(row):
+        category_id = (row.get('category/id') or '').strip()
+        prefix = 'category/name'
+        if not category_id:
+            # Newer Decidim versions replaced categories with taxonomies; a
+            # proposal may have several, and its first one is used.
+            taxonomy_ids = [t.strip() for t in (row.get('taxonomies/ids') or '').split(',') if t.strip()]
+            if not taxonomy_ids:
+                return None
+            category_id, prefix = taxonomy_ids[0], 'taxonomies/{}'.format(taxonomy_ids[0])
+        category, _ = Category.objects.get_or_create(
+            id=int(category_id),
+            defaults={
+                'name_es': blank_to_none(row.get('{}/es'.format(prefix))),
+                'name_ca': blank_to_none(row.get('{}/ca'.format(prefix))),
+                'name_en': blank_to_none(row.get('{}/en'.format(prefix))),
+            },
+        )
+        return category
