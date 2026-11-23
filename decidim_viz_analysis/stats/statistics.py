@@ -4,6 +4,7 @@ People are counted without the ambiguous user records (see stats/users.py),
 which stand for several people or for unknown authors.
 """
 from collections import Counter
+from urllib.parse import urlparse
 
 import numpy as np
 from django.db.models import Count, Max, Min, Q
@@ -60,6 +61,30 @@ def temporal_limits():
         'proposals_to': iso(proposals['last']),
         'comments_from': iso(comments['first']),
         'comments_to': iso(comments['last']),
+    }
+
+
+def instance():
+    """The Decidim instance the imported data come from, read from the proposals' URLs.
+
+    The most common host is reported; 'hosts' lists every host with its number
+    of proposals, so a database mixing several instances is visible. Without
+    proposals (or URLs), name and url are None.
+    """
+    hosts = Counter()
+    schemes = {}
+    for url in Proposal.objects.exclude(url=None).exclude(url='').values_list('url', flat=True):
+        parsed = urlparse(url)
+        if parsed.netloc:
+            hosts[parsed.netloc] += 1
+            schemes.setdefault(parsed.netloc, parsed.scheme or 'https')
+    if not hosts:
+        return {'name': None, 'url': None, 'hosts': []}
+    name = hosts.most_common(1)[0][0]
+    return {
+        'name': name,
+        'url': '{}://{}'.format(schemes[name], name),
+        'hosts': [{'name': host, 'proposals': count} for host, count in hosts.most_common()],
     }
 
 

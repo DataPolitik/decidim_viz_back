@@ -226,6 +226,10 @@ def get_summary(request):
     return JsonResponse(statistics.summary())
 
 
+def get_instance(request):
+    return JsonResponse(statistics.instance())
+
+
 def get_participation_types(request):
     return JsonResponse(statistics.participation_types())
 

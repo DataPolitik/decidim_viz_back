@@ -678,3 +678,22 @@ class NodeOverlapTests(TestCase):
         positions, layout = network_layout(graph, [set(range(30)), set(range(30, 61))], seed=3)
         self.assertEqual(layout, 'spring')
         self.assert_no_overlaps(positions, MIN_NODE_DISTANCE)
+
+
+class InstanceEndpointTests(TestCase):
+    def create(self, id_, url):
+        Proposal.objects.create(id_proposal=id_, proposal_title_es='', proposal_title_en='', proposal_title_fr='', url=url)
+
+    def test_reports_the_instance_of_the_proposals(self):
+        self.create(1, 'https://meta.decidim.org/en/processes/roadmap/f/122/proposals/1')
+        self.create(2, 'https://meta.decidim.org/en/processes/roadmap/f/122/proposals/2')
+        self.create(3, 'https://other.example.org/processes/x/f/1/proposals/3')
+        self.create(4, None)
+        data = self.client.get('/stats/instance').json()
+        self.assertEqual(data['name'], 'meta.decidim.org')
+        self.assertEqual(data['url'], 'https://meta.decidim.org')
+        self.assertEqual(data['hosts'], [{'name': 'meta.decidim.org', 'proposals': 2},
+                                         {'name': 'other.example.org', 'proposals': 1}])
+
+    def test_empty_database(self):
+        self.assertEqual(self.client.get('/stats/instance').json(), {'name': None, 'url': None, 'hosts': []})
