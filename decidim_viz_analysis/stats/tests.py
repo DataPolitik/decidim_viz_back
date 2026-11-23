@@ -468,3 +468,39 @@ class NewerExportFormatTests(TestCase):
                          datetime(2017, 10, 6, 8, 48, 14, tzinfo=timezone.utc))
         self.assertEqual((proposal.category_id, proposal.category.name_en, proposal.category.name_es),
                          (1085, 'Governance', 'Gobernanza'))
+
+
+class LayoutTests(TestCase):
+    def test_spring_layout_for_connected_users_and_ring_for_isolated(self):
+        from stats.phi.phi import network_layout
+        import networkx as nx
+        graph = nx.Graph()
+        graph.add_weighted_edges_from([(1, 2, 0.9), (2, 3, 0.8), (1, 3, 0.7), (4, 5, 0.6)], weight='phi')
+        graph.add_nodes_from([6, 7])
+        positions, layout = network_layout(graph, [{1, 2, 3}, {4, 5}, {6}, {7}], seed=1)
+
+        self.assertEqual(layout, 'spring')
+        self.assertEqual(set(positions), {1, 2, 3, 4, 5, 6, 7})
+        radius = lambda node: (positions[node][0] ** 2 + positions[node][1] ** 2) ** 0.5
+        for node in (1, 2, 3, 4, 5):
+            self.assertLessEqual(radius(node), 1.0 + 1e-9)
+        for node in (6, 7):
+            self.assertAlmostEqual(radius(node), 1.25)
+        # Same seed, same picture.
+        self.assertEqual(network_layout(graph, [{1, 2, 3}, {4, 5}, {6}, {7}], seed=1)[0], positions)
+
+    def test_large_or_edgeless_networks_fall_back_to_a_circle(self):
+        from stats.phi import phi
+        import networkx as nx
+        edgeless = nx.Graph()
+        edgeless.add_nodes_from([1, 2, 3])
+        self.assertEqual(phi.network_layout(edgeless, [{1}, {2}, {3}])[1], 'circular')
+
+        big = nx.path_graph(12)
+        nx.set_edge_attributes(big, 0.5, 'phi')
+        original = phi.MAX_SPRING_LAYOUT_NODES
+        phi.MAX_SPRING_LAYOUT_NODES = 10
+        self.addCleanup(setattr, phi, 'MAX_SPRING_LAYOUT_NODES', original)
+        positions, layout = phi.network_layout(big, [set(range(12))])
+        self.assertEqual(layout, 'circular')
+        self.assertEqual(len(positions), 12)

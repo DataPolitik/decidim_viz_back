@@ -167,10 +167,7 @@ def build_network(memberships, n_proposals, usernames, alpha=DEFAULT_ALPHA, corr
     node_community = {node: i for i, community in enumerate(communities) for node in community}
     community_colors = distinct_colors(len(communities))
 
-    # Circular layout with communities as contiguous arcs.
-    ordered = [node for community in communities for node in sorted(community)]
-    positions = {node: [cos(2 * pi * k / len(ordered)), sin(2 * pi * k / len(ordered))]
-                 for k, node in enumerate(ordered)}
+    positions, layout = network_layout(graph, communities, seed)
 
     adjacency = defaultdict(dict)
     for node in active:
@@ -195,5 +192,42 @@ def build_network(memberships, n_proposals, usernames, alpha=DEFAULT_ALPHA, corr
             'alpha': alpha,
             'correction': correction,
             'seed': seed,
+            'layout': layout,
         },
     }
+
+
+MAX_SPRING_LAYOUT_NODES = 5000
+
+
+def _ring(nodes, radius):
+    return {node: [radius * cos(2 * pi * k / len(nodes)), radius * sin(2 * pi * k / len(nodes))]
+            for k, node in enumerate(nodes)}
+
+
+def network_layout(graph, communities, seed=DEFAULT_SEED):
+    """Node positions for drawing, and the name of the layout used.
+
+    Connected users get a force-directed (Fruchterman-Reingold) layout with phi
+    as the edge weight, so strongly linked users end up close together; users
+    without any edge are put on a ring around them. Above
+    MAX_SPRING_LAYOUT_NODES connected users the force-directed layout gets
+    slow (quadratic per iteration), so everyone is placed on a circle instead,
+    with each community as a contiguous arc.
+    """
+    order = {node: i for i, community in enumerate(communities) for node in community}
+    by_community = lambda nodes: sorted(nodes, key=lambda node: (order.get(node, 0), node))
+    connected = [node for node in graph if graph.degree(node) > 0]
+    isolated = by_community(node for node in graph if graph.degree(node) == 0)
+
+    if not connected or len(connected) > MAX_SPRING_LAYOUT_NODES:
+        return _ring(by_community(graph.nodes), 1.0), 'circular'
+
+    spring = nx.spring_layout(graph.subgraph(connected), weight='phi', seed=seed)
+    # spring_layout bounds each axis, so corners can reach sqrt(2); scale to the
+    # unit disc to keep the connected users inside the ring of isolated ones.
+    furthest = max((x * x + y * y) ** 0.5 for x, y in spring.values()) or 1.0
+    positions = {node: [float(x) / furthest, float(y) / furthest] for node, (x, y) in spring.items()}
+    if isolated:
+        positions.update(_ring(isolated, 1.25))
+    return positions, 'spring'
