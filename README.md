@@ -32,6 +32,7 @@ Settings live in `decidim_viz_analysis/decidim_viz_analysis/settings.py` and are
 | `DJANGO_CORS_ORIGINS` | empty (all origins allowed in debug) | Origin(s) of the front end |
 | `DJANGO_DB_PATH` | `db.sqlite3` | SQLite database file |
 | `DECIDIM_VIZ_CACHE_DIR` | `stats/cache` | Where the network caches are written |
+| `DECIDIM_VIZ_FRONTEND_DIR` | unset | Optional: the built front end (`dist/decidim_viz_front`), served at `/` by this same site |
 
 ## Executing
 
@@ -46,7 +47,17 @@ python manage.py generate_comments_cache
 python manage.py runserver
 ```
 
+Or, in one step, download an instance's open-data export and do the import and the networks:
+
+```
+python manage.py refresh_from_open_data https://meta.decidim.org
+```
+
 Run `python manage.py test` to run the tests.
+
+## Deploying
+
+[docs/deploy-alwaysdata.md](docs/deploy-alwaysdata.md) deploys the whole dashboard (front end included) as one site on alwaysdata's free plan, with a weekly data refresh. The same setup (one Django site with `DECIDIM_VIZ_FRONTEND_DIR`, plus a scheduled `refresh_from_open_data`) works on any host that runs Python.
 
 ## User matching
 
