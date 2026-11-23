@@ -68,8 +68,9 @@ def instance():
     """The Decidim instance the imported data come from, read from the proposals' URLs.
 
     The most common host is reported; 'hosts' lists every host with its number
-    of proposals, so a database mixing several instances is visible. Without
-    proposals (or URLs), name and url are None.
+    of proposals, so a database mixing several instances is visible. api_url
+    is Decidim's GraphQL endpoint, which is always at /api. Without proposals
+    (or URLs), name, url and api_url are None.
     """
     hosts = Counter()
     schemes = {}
@@ -79,11 +80,13 @@ def instance():
             hosts[parsed.netloc] += 1
             schemes.setdefault(parsed.netloc, parsed.scheme or 'https')
     if not hosts:
-        return {'name': None, 'url': None, 'hosts': []}
+        return {'name': None, 'url': None, 'api_url': None, 'hosts': []}
     name = hosts.most_common(1)[0][0]
+    url = '{}://{}'.format(schemes[name], name)
     return {
         'name': name,
-        'url': '{}://{}'.format(schemes[name], name),
+        'url': url,
+        'api_url': url + '/api',
         'hosts': [{'name': host, 'proposals': count} for host, count in hosts.most_common()],
     }
 

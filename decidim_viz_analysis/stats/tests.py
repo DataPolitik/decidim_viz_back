@@ -692,8 +692,9 @@ class InstanceEndpointTests(TestCase):
         data = self.client.get('/stats/instance').json()
         self.assertEqual(data['name'], 'meta.decidim.org')
         self.assertEqual(data['url'], 'https://meta.decidim.org')
+        self.assertEqual(data['api_url'], 'https://meta.decidim.org/api')
         self.assertEqual(data['hosts'], [{'name': 'meta.decidim.org', 'proposals': 2},
                                          {'name': 'other.example.org', 'proposals': 1}])
 
     def test_empty_database(self):
-        self.assertEqual(self.client.get('/stats/instance').json(), {'name': None, 'url': None, 'hosts': []})
+        self.assertEqual(self.client.get('/stats/instance').json(), {'name': None, 'url': None, 'api_url': None, 'hosts': []})
