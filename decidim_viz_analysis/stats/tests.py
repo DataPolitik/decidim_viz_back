@@ -3,6 +3,7 @@ import io
 import os
 import pickle
 import tempfile
+from datetime import datetime, timezone
 
 import numpy as np
 from django.core.management import call_command
@@ -440,3 +441,30 @@ class ReplyLinkTests(TestCase):
         self.assertFalse(nested.replies.exists())
         self.assertIsNone(top.reply_to)
         self.assertEqual(nested.reply_to, reply)
+
+
+class NewerExportFormatTests(TestCase):
+    """Decidim >= 0.28 exports: likes instead of endorsements, title/<lang>, taxonomies, +hhmm offsets."""
+
+    def test_load_newer_proposals_export(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        columns = ['id', 'title/ca', 'title/en', 'title/machine_translations/es', 'published_at',
+                   'likes/total_count', 'likes/user_likes', 'taxonomies/ids',
+                   'taxonomies/1085/en', 'taxonomies/1085/es', 'taxonomies/1088/en', 'latitude', 'longitude']
+        rows = [{'id': 1, 'title/ca': 'Hola', 'title/en': 'Hello', 'title/machine_translations/es': 'Hola (MT)',
+                 'published_at': '2017-10-06 10:48:14 +0200', 'likes/total_count': 2,
+                 'likes/user_likes': 'Ana, Bob', 'taxonomies/ids': '1085, 1088',
+                 'taxonomies/1085/en': 'Governance', 'taxonomies/1085/es': 'Gobernanza',
+                 'taxonomies/1088/en': 'Other'}]
+        call_command('load_endorses_from_csv', write_csv(tmp.name, 'p.csv', columns, rows), stdout=io.StringIO())
+
+        proposal = Proposal.objects.get(id_proposal=1)
+        self.assertEqual((proposal.proposal_title_en, proposal.proposal_title_es, proposal.proposal_title_fr),
+                         ('Hello', 'Hola (MT)', ''))
+        self.assertEqual(proposal.endorsements, 2)
+        self.assertEqual(set(proposal.users.values_list('name', flat=True)), {'Ana', 'Bob'})
+        self.assertEqual(proposal.published_at,  # stored in UTC; same instant
+                         datetime(2017, 10, 6, 8, 48, 14, tzinfo=timezone.utc))
+        self.assertEqual((proposal.category_id, proposal.category.name_en, proposal.category.name_es),
+                         (1085, 'Governance', 'Gobernanza'))

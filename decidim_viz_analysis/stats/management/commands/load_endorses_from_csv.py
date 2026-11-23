@@ -4,7 +4,7 @@ from collections import Counter
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from stats.csv_utils import blank_to_none, parse_datetime, split_names
+from stats.csv_utils import blank_to_none, first_filled, parse_datetime, split_names
 from stats.models import Category, Proposal
 from stats.users import UserResolver
 
@@ -21,14 +21,15 @@ class Command(BaseCommand):
 
         with open(options['csv_path'], 'r', encoding='utf-8') as file:
             for row in csv.DictReader(file, delimiter=';'):
-                endorsers = split_names(row.get('endorsements/user_endorsements'))
+                # Endorsements were renamed "likes" in newer Decidim versions.
+                endorsers = split_names(first_filled(row, ('endorsements/user_endorsements', 'likes/user_likes')))
 
                 proposal, _ = Proposal.objects.update_or_create(
                     id_proposal=int(row['id']),
                     defaults={
-                        'proposal_title_es': row.get('title/machine_translations/es', ''),
-                        'proposal_title_en': row.get('title/machine_translations/en', ''),
-                        'proposal_title_fr': row.get('title/machine_translations/fr', ''),
+                        'proposal_title_es': self._title(row, 'es'),
+                        'proposal_title_en': self._title(row, 'en'),
+                        'proposal_title_fr': self._title(row, 'fr'),
                         'url': blank_to_none(row.get('participatory_space/url')),
                         'latitude': blank_to_none(row.get('latitude')),
                         'longitude': blank_to_none(row.get('longitude')),
@@ -49,16 +50,27 @@ class Command(BaseCommand):
         self.stdout.write(users.summary())
 
     @staticmethod
+    def _title(row, language):
+        # Text written in that language, else Decidim's machine translation.
+        return first_filled(row, ('title/{}'.format(language), 'title/machine_translations/{}'.format(language)))
+
+    @staticmethod
     def _category(row):
         category_id = (row.get('category/id') or '').strip()
+        prefix = 'category/name'
         if not category_id:
-            return None
+            # Newer Decidim versions replaced categories with taxonomies; a
+            # proposal may have several, and its first one is used.
+            taxonomy_ids = [t.strip() for t in (row.get('taxonomies/ids') or '').split(',') if t.strip()]
+            if not taxonomy_ids:
+                return None
+            category_id, prefix = taxonomy_ids[0], 'taxonomies/{}'.format(taxonomy_ids[0])
         category, _ = Category.objects.get_or_create(
             id=int(category_id),
             defaults={
-                'name_es': blank_to_none(row.get('category/name/es')),
-                'name_ca': blank_to_none(row.get('category/name/ca')),
-                'name_en': blank_to_none(row.get('category/name/en')),
+                'name_es': blank_to_none(row.get('{}/es'.format(prefix))),
+                'name_ca': blank_to_none(row.get('{}/ca'.format(prefix))),
+                'name_en': blank_to_none(row.get('{}/en'.format(prefix))),
             },
         )
         return category

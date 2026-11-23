@@ -1,11 +1,15 @@
 """Helpers shared by the commands that import Decidim open-data CSV exports."""
 from datetime import datetime, timezone
 
-_DATETIME_FORMATS = ('%Y-%m-%d %H:%M:%S %Z', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%dT%H:%M:%S')
+_DATETIME_FORMATS = ('%Y-%m-%d %H:%M:%S %Z', '%Y-%m-%d %H:%M:%S %z', '%Y-%m-%d %H:%M:%S',
+                     '%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%dT%H:%M:%S')
 
 
 def parse_datetime(value):
-    """Parse a Decidim export timestamp ("2022-01-31 10:00:00 UTC") into an aware datetime.
+    """Parse a Decidim export timestamp into an aware datetime.
+
+    Accepts "2022-01-31 10:00:00 UTC" (older exports) and
+    "2022-01-31 10:00:00 +0200" (newer exports), among others.
 
     Returns None for empty values. Timestamps without an offset are taken as UTC.
     """
@@ -32,3 +36,16 @@ def split_names(value):
 def blank_to_none(value):
     value = (value or '').strip()
     return value or None
+
+
+def first_filled(row, columns, default=''):
+    """The first non-blank value among the given columns.
+
+    Lets the importers read both older exports (e.g. futureu, Decidim 0.26/0.27)
+    and newer ones, whose column names changed.
+    """
+    for column in columns:
+        value = (row.get(column) or '').strip()
+        if value:
+            return value
+    return default
