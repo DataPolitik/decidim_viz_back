@@ -21,6 +21,7 @@ def parse_proposal(proposal):
                 'title_es': proposal.proposal_title_es,
                 'title_fr': proposal.proposal_title_fr,
                 'title_en': proposal.proposal_title_en,
+                'title': proposal.display_title,
                 'url': proposal.url,
                 'latitude': proposal.latitude,
                 'longitude': proposal.longitude
@@ -116,6 +117,7 @@ def get_proposals_by_supports(request, limit):
                 'title_es': proposal.proposal_title_es,
                 'title_fr': proposal.proposal_title_fr,
                 'title_en': proposal.proposal_title_en,
+                'title': proposal.display_title,
                 'endorsements': proposal.endorsements,
                 'category': proposal.category.pk if proposal.category is not None else ''
             }
@@ -144,6 +146,7 @@ def get_proposals_by_comments(request, limit):
                 'title_es': proposal.proposal_title_es,
                 'title_fr': proposal.proposal_title_fr,
                 'title_en': proposal.proposal_title_en,
+                'title': proposal.display_title,
                 'endorsements': proposal.endorsements,
                 'category': proposal.category.pk if proposal.category is not None else '',
                 'comments': proposal.num_comments
@@ -270,6 +273,7 @@ def get_most_commented_proposal(request):
         'title_es': proposal.proposal_title_es,
         'title_fr': proposal.proposal_title_fr,
         'title_en': proposal.proposal_title_en,
+        'title': proposal.display_title,
         'endorsements': proposal.endorsements,
         'category': proposal.category.pk if proposal.category is not None else '',
         'comments': proposal.num_comments
@@ -286,6 +290,7 @@ def get_most_endorsed_proposal(request):
         'title_es': proposal.proposal_title_es,
         'title_fr': proposal.proposal_title_fr,
         'title_en': proposal.proposal_title_en,
+        'title': proposal.display_title,
         'endorsements': proposal.endorsements,
         'category': proposal.category.pk if proposal.category is not None else '',
     }
@@ -331,6 +336,7 @@ def get_proposals_by_date(request, date_from, date_to):
                 'title_es': proposal.proposal_title_es,
                 'title_fr': proposal.proposal_title_fr,
                 'title_en': proposal.proposal_title_en,
+                'title': proposal.display_title,
                 'url': proposal.url,
                 'latitude': proposal.latitude,
                 'longitude': proposal.longitude,

@@ -51,6 +51,8 @@ class Proposal(models.Model):
     proposal_title_es = models.CharField(max_length=255)
     proposal_title_en = models.CharField(max_length=255)
     proposal_title_fr = models.CharField(max_length=255)
+    # Title as written, in whatever language the proposal was published in.
+    proposal_title = models.TextField(blank=True, default='')
     published_at = models.DateTimeField(null=True)
     url = models.CharField(max_length=300, null=True)
     latitude = models.CharField(max_length=50, null=True)
@@ -65,3 +67,9 @@ class Proposal(models.Model):
 
     def __str__(self):
         return str(self.id_proposal)
+
+    @property
+    def display_title(self):
+        """A title in any language: the original, else a translation, else the id."""
+        return (self.proposal_title or self.proposal_title_en or self.proposal_title_es
+                or self.proposal_title_fr or '#{}'.format(self.id_proposal))

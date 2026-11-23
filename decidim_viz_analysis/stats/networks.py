@@ -76,9 +76,9 @@ def get_network(kind):
 
 
 TITLE_FIELDS = {
-    'en': ('proposal_title_en', 'proposal_title_es', 'proposal_title_fr'),
-    'es': ('proposal_title_es', 'proposal_title_en', 'proposal_title_fr'),
-    'fr': ('proposal_title_fr', 'proposal_title_en', 'proposal_title_es'),
+    'en': ('proposal_title_en', 'proposal_title_es', 'proposal_title_fr', 'proposal_title'),
+    'es': ('proposal_title_es', 'proposal_title_en', 'proposal_title_fr', 'proposal_title'),
+    'fr': ('proposal_title_fr', 'proposal_title_en', 'proposal_title_es', 'proposal_title'),
 }
 
 

@@ -606,3 +606,32 @@ class StatisticsEndpointTests(TestCase):
         call_command('load_comments_from_csv', write_csv(tmp.name, 'c.csv', columns, rows),
                      stdout=io.StringIO(), stderr=io.StringIO())
         self.assertEqual(Comment.objects.get(id_comment=20).body_length, 9)
+
+
+class ProposalTitleAndLinkTests(TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        columns = ['id', 'title/ca', 'title/en', 'title/es', 'published_at', 'likes/user_likes',
+                   'url', 'participatory_space/url']
+        rows = [
+            {'id': 1, 'title/ca': 'Només en català', 'published_at': '2020-01-01 10:00:00 +0100',
+             'likes/user_likes': 'Ana, Bob',
+             'url': 'https://example.org/processes/p/f/1/proposals/1',
+             'participatory_space/url': 'https://example.org/processes/p'},
+            {'id': 2, 'title/en': 'In English', 'title/es': 'En castellano', 'published_at': '2020-01-01 10:00:00 +0100',
+             'likes/user_likes': 'Ana', 'participatory_space/url': 'https://example.org/processes/q'},
+        ]
+        call_command('load_endorses_from_csv', write_csv(tmp.name, 'p.csv', columns, rows), stdout=io.StringIO())
+
+    def test_links_point_to_the_proposal_not_the_process(self):
+        self.assertEqual(Proposal.objects.get(id_proposal=1).url, 'https://example.org/processes/p/f/1/proposals/1')
+        # Exports without a proposal URL still give the space's.
+        self.assertEqual(Proposal.objects.get(id_proposal=2).url, 'https://example.org/processes/q')
+
+    def test_every_proposal_has_a_title(self):
+        data = self.client.get('/stats/proposals/supports/2').json()['proposals']
+        self.assertEqual([(p['id'], p['title'], p['title_es']) for p in data],
+                         [(1, 'Només en català', ''), (2, 'In English', 'En castellano')])
+        self.assertEqual(self.client.get('/stats/proposal/1').json()['title'], 'Només en català')
+        self.assertEqual(Proposal(id_proposal=9).display_title, '#9')

@@ -30,7 +30,9 @@ class Command(BaseCommand):
                         'proposal_title_es': self._title(row, 'es'),
                         'proposal_title_en': self._title(row, 'en'),
                         'proposal_title_fr': self._title(row, 'fr'),
-                        'url': blank_to_none(row.get('participatory_space/url')),
+                        'proposal_title': self._original_title(row),
+                        # The proposal's own page; older exports may only have the space's.
+                        'url': blank_to_none(first_filled(row, ('url', 'participatory_space/url'))),
                         'latitude': blank_to_none(row.get('latitude')),
                         'longitude': blank_to_none(row.get('longitude')),
                         'published_at': parse_datetime(row.get('published_at')),
@@ -48,6 +50,13 @@ class Command(BaseCommand):
         users.reconcile()
         self.stdout.write('There are {} proposals!'.format(Proposal.objects.count()))
         self.stdout.write(users.summary())
+
+    @staticmethod
+    def _original_title(row):
+        # Any title/<language> column holds text as written; fall back to machine translations.
+        written = [c for c in row if c.startswith('title/') and not c.startswith('title/machine_translations/')]
+        translated = [c for c in row if c.startswith('title/machine_translations/')]
+        return first_filled(row, written + translated)
 
     @staticmethod
     def _title(row, language):
