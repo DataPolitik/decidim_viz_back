@@ -4,13 +4,18 @@ Django settings for decidim_viz_analysis.
 Everything deployment-specific is read from environment variables so that no
 secret has to be committed. Defaults are meant for local development only.
 
-    DJANGO_SECRET_KEY      required when DJANGO_DEBUG is off
+    DJANGO_SECRET_KEY      required when DJANGO_DEBUG is off (or DJANGO_SECRET_KEY_FILE)
+    DJANGO_SECRET_KEY_FILE path of a file holding the secret key, instead of the key itself
     DJANGO_DEBUG           "1" (default) or "0"
     DJANGO_ALLOWED_HOSTS   comma-separated, e.g. "viz.example.org,localhost"
     DJANGO_CORS_ORIGINS    comma-separated origins of the front end,
                            e.g. "https://viz.example.org". Empty + DEBUG = allow all.
     DJANGO_DB_PATH         path of the SQLite file (default: db.sqlite3 here)
     DECIDIM_VIZ_CACHE_DIR  where the network caches (pickles) are stored
+    DECIDIM_VIZ_FRONTEND_DIR  optional: directory of the built front end
+                           (decidim_viz_front's dist/decidim_viz_front). When set,
+                           Django also serves the dashboard itself at /, so one
+                           site on one address hosts both halves.
 """
 import os
 from pathlib import Path
@@ -25,9 +30,12 @@ def _env_list(name, default=''):
 DEBUG = os.environ.get('DJANGO_DEBUG', '1') == '1'
 
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
+if not SECRET_KEY and os.environ.get('DJANGO_SECRET_KEY_FILE'):
+    # Keeps the key out of the environment and of hosting control panels.
+    SECRET_KEY = Path(os.environ['DJANGO_SECRET_KEY_FILE']).read_text(encoding='utf-8').strip()
 if not SECRET_KEY:
     if not DEBUG:
-        raise RuntimeError('Set DJANGO_SECRET_KEY when DJANGO_DEBUG=0')
+        raise RuntimeError('Set DJANGO_SECRET_KEY or DJANGO_SECRET_KEY_FILE when DJANGO_DEBUG=0')
     SECRET_KEY = 'insecure-development-key-do-not-use-in-production'
 
 ALLOWED_HOSTS = _env_list('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1')
@@ -103,3 +111,16 @@ CORS_ALLOW_ALL_ORIGINS = DEBUG and not CORS_ALLOWED_ORIGINS
 # Network caches written by `generate_*_cache` and read by the /comments and
 # /endorsements endpoints.
 DECIDIM_VIZ_CACHE_DIR = Path(os.environ.get('DECIDIM_VIZ_CACHE_DIR', BASE_DIR / 'stats' / 'cache'))
+
+# Optionally serve the built front end from the same site (see the docstring).
+# WhiteNoise answers only for files that exist in that directory ("/" gives
+# index.html), so every other path, such as /stats/..., still reaches Django.
+DECIDIM_VIZ_FRONTEND_DIR = os.environ.get('DECIDIM_VIZ_FRONTEND_DIR')
+if DECIDIM_VIZ_FRONTEND_DIR:
+    MIDDLEWARE.insert(MIDDLEWARE.index('django.middleware.security.SecurityMiddleware') + 1,
+                      'whitenoise.middleware.WhiteNoiseMiddleware')
+    WHITENOISE_ROOT = DECIDIM_VIZ_FRONTEND_DIR
+    WHITENOISE_INDEX_FILE = True
+    # The front end reads assets/config.json at start-up: never serve a stale copy.
+    WHITENOISE_ADD_HEADERS_FUNCTION = lambda headers, path, url: (
+        headers.__setitem__('Cache-Control', 'no-cache') if url.endswith('/config.json') else None)

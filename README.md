@@ -26,12 +26,14 @@ Settings live in `decidim_viz_analysis/decidim_viz_analysis/settings.py` and are
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `DJANGO_SECRET_KEY` | dev-only key | Required when `DJANGO_DEBUG=0` |
+| `DJANGO_SECRET_KEY` | dev-only key | Required when `DJANGO_DEBUG=0` (or use `DJANGO_SECRET_KEY_FILE`) |
+| `DJANGO_SECRET_KEY_FILE` | unset | Path of a file holding the secret key, instead of the key itself |
 | `DJANGO_DEBUG` | `1` | Set to `0` in production |
 | `DJANGO_ALLOWED_HOSTS` | `localhost,127.0.0.1` | Comma-separated |
 | `DJANGO_CORS_ORIGINS` | empty (all origins allowed in debug) | Origin(s) of the front end |
 | `DJANGO_DB_PATH` | `db.sqlite3` | SQLite database file |
 | `DECIDIM_VIZ_CACHE_DIR` | `stats/cache` | Where the network caches are written |
+| `DECIDIM_VIZ_FRONTEND_DIR` | unset | Optional: the built front end (`dist/decidim_viz_front`), served at `/` by this same site |
 
 ## Executing
 
@@ -46,7 +48,17 @@ python manage.py generate_comments_cache
 python manage.py runserver
 ```
 
+Or, in one step, download an instance's open-data export and do the import and the networks:
+
+```
+python manage.py refresh_from_open_data https://meta.decidim.org
+```
+
 Run `python manage.py test` to run the tests.
+
+## Deploying
+
+[docs/deploy.md](docs/deploy.md) deploys the whole dashboard (front end included) as one Django site with `DECIDIM_VIZ_FRONTEND_DIR`, plus a weekly `refresh_from_open_data`, on any host that runs Python. It includes alwaysdata's free plan as a worked example.
 
 ## User matching
 

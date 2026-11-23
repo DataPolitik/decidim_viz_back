@@ -698,3 +698,128 @@ class InstanceEndpointTests(TestCase):
 
     def test_empty_database(self):
         self.assertEqual(self.client.get('/stats/instance').json(), {'name': None, 'url': None, 'api_url': None, 'hosts': []})
+
+
+class FrontendServingTests(TestCase):
+    """DECIDIM_VIZ_FRONTEND_DIR: one site serves the dashboard and the API."""
+
+    def setUp(self):
+        from django.conf import settings
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        os.makedirs(os.path.join(self.tmp.name, 'assets'))
+        with open(os.path.join(self.tmp.name, 'index.html'), 'w') as f:
+            f.write('<html>dashboard</html>')
+        with open(os.path.join(self.tmp.name, 'assets', 'config.json'), 'w') as f:
+            f.write('{"host": "https://viz.example.org"}')
+        middleware = list(settings.MIDDLEWARE)
+        middleware.insert(middleware.index('django.middleware.security.SecurityMiddleware') + 1,
+                          'whitenoise.middleware.WhiteNoiseMiddleware')
+        from decidim_viz_analysis import settings as project_settings
+        override = override_settings(MIDDLEWARE=middleware, WHITENOISE_ROOT=self.tmp.name, WHITENOISE_INDEX_FILE=True,
+                                     WHITENOISE_ADD_HEADERS_FUNCTION=None)
+        override.enable()
+        self.addCleanup(override.disable)
+        from django.test import Client
+        self.client = Client()
+
+    def test_root_serves_the_dashboard_and_stats_still_reach_django(self):
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'dashboard', b''.join(response.streaming_content))
+        response.close()
+        config = self.client.get('/assets/config.json')
+        self.assertEqual(config.status_code, 200)
+        self.assertIn(b'viz.example.org', b''.join(config.streaming_content))
+        config.close()  # release the file (Windows cannot delete open files)
+        self.assertEqual(self.client.get('/stats/summary').json(), {'participants': 0, 'proposals': 0, 'comments': 0})
+
+    def test_settings_enable_it_from_the_environment(self):
+        import importlib
+        from decidim_viz_analysis import settings as project_settings
+        os.environ['DECIDIM_VIZ_FRONTEND_DIR'] = self.tmp.name
+        try:
+            reloaded = importlib.reload(project_settings)
+            self.assertIn('whitenoise.middleware.WhiteNoiseMiddleware', reloaded.MIDDLEWARE)
+            self.assertEqual(reloaded.WHITENOISE_ROOT, self.tmp.name)
+            headers = {}
+            reloaded.WHITENOISE_ADD_HEADERS_FUNCTION(headers, 'x', '/assets/config.json')
+            self.assertEqual(headers.get('Cache-Control'), 'no-cache')
+        finally:
+            del os.environ['DECIDIM_VIZ_FRONTEND_DIR']
+            importlib.reload(project_settings)
+
+
+class RefreshFromOpenDataTests(TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        override = override_settings(DECIDIM_VIZ_CACHE_DIR=os.path.join(self.tmp.name, 'cache'))
+        override.enable()
+        self.addCleanup(override.disable)
+
+    def make_zip(self, with_proposals=True, with_comments=True):
+        import zipfile
+        proposals = write_csv(self.tmp.name, 'p.csv', PROPOSAL_COLUMNS,
+                              [proposal_row(1, 'Ana, Bob'), proposal_row(2, 'Ana, Bob')])
+        comments = write_csv(self.tmp.name, 'c.csv', COMMENT_COLUMNS,
+                             [comment_row(10, 1, 'Ana', 1), comment_row(11, 2, 'Bob', 2)])
+        path = os.path.join(self.tmp.name, 'example.org-open-data.zip')
+        with zipfile.ZipFile(path, 'w') as zf:
+            zf.writestr('README.md', 'open data')
+            zf.writestr('example.org-open-data-meetings.csv', 'id\n1\n')
+            if with_proposals:
+                zf.write(proposals, 'example.org-open-data-proposals.csv')
+            if with_comments:
+                zf.write(comments, 'example.org-open-data-proposal_comments.csv')
+        return path
+
+    def test_imports_and_builds_the_networks_from_a_local_zip(self):
+        call_command('refresh_from_open_data', self.make_zip(), stdout=io.StringIO(), stderr=io.StringIO())
+        self.assertEqual(Proposal.objects.count(), 2)
+        self.assertEqual(Comment.objects.count(), 2)
+        for name in ('endorsement_all.pickle', 'comments_all.pickle'):
+            self.assertTrue(os.path.exists(os.path.join(self.tmp.name, 'cache', name)))
+
+    def test_downloads_from_a_url(self):
+        from pathlib import Path
+        url = Path(self.make_zip()).resolve().as_uri()  # file:// stands in for https://
+        out = io.StringIO()
+        call_command('refresh_from_open_data', url, stdout=out, stderr=io.StringIO())
+        self.assertIn('Downloading', out.getvalue())
+        self.assertEqual(Proposal.objects.count(), 2)
+
+    def test_export_without_comments_imports_proposals_only(self):
+        err = io.StringIO()
+        call_command('refresh_from_open_data', self.make_zip(with_comments=False), stdout=io.StringIO(), stderr=err)
+        self.assertEqual(Proposal.objects.count(), 2)
+        self.assertIn('no proposal comments', err.getvalue())
+
+    def test_export_without_proposals_fails_clearly(self):
+        from django.core.management.base import CommandError
+        with self.assertRaisesMessage(CommandError, 'No proposals CSV'):
+            call_command('refresh_from_open_data', self.make_zip(with_proposals=False),
+                         stdout=io.StringIO(), stderr=io.StringIO())
+
+
+class SecretKeyFileTests(TestCase):
+    def test_secret_key_read_from_a_file(self):
+        import importlib
+        from decidim_viz_analysis import settings as project_settings
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        key_file = os.path.join(tmp.name, 'secret')
+        with open(key_file, 'w') as f:
+            f.write('from-a-file\n')
+        saved = {k: os.environ.get(k) for k in ('DJANGO_SECRET_KEY', 'DJANGO_SECRET_KEY_FILE', 'DJANGO_DEBUG')}
+        os.environ.pop('DJANGO_SECRET_KEY', None)
+        os.environ.update(DJANGO_SECRET_KEY_FILE=key_file, DJANGO_DEBUG='0')
+        try:
+            self.assertEqual(importlib.reload(project_settings).SECRET_KEY, 'from-a-file')
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+            importlib.reload(project_settings)
