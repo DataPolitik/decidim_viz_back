@@ -43,12 +43,13 @@ From `decidim_viz_analysis/`:
 python manage.py migrate
 python manage.py load_endorses_from_csv proposals.csv   # Decidim proposals export (";"-separated)
 python manage.py load_comments_from_csv comments.csv    # Decidim comments export, after the proposals
+python manage.py load_processes_from_csv processes.csv  # participatory processes export (optional: start/end dates)
 python manage.py generate_endorses_cache                # phi networks, see below
 python manage.py generate_comments_cache
 python manage.py runserver
 ```
 
-Or, in one step, download an instance's open-data export and do the import and the networks:
+Or, in one step, download an instance's open-data export and do the import (proposals, comments and participatory processes) and the networks:
 
 ```
 python manage.py refresh_from_open_data https://meta.decidim.org
@@ -76,6 +77,8 @@ The import commands print how many users fall into each group. See `stats/users.
 `/stats/endorsements/` and `/stats/comments/` return a user-user network: two users are linked when they endorse (or comment on) the same proposals significantly more often than chance.
 
 For users A and B who took part in `a` and `b` of the `n` proposals, sharing `n11` of them, the p-value is `P(X >= n11)` with `X ~ Hypergeometric(n, a, b)`, i.e. a one-sided Fisher exact test. Every pair of active users counts as one test, and the p-values are corrected for multiple testing with `--correction fdr` (Benjamini-Hochberg, the default), `bonferroni` or `none`, at level `--alpha` (default 0.05). Edges are weighted by the phi coefficient `(n*n11 - a*b) / sqrt(a*b*(n-a)*(n-b))`; communities are found with Louvain on those weights (`--seed`, default 42), and the response includes their modularity. `/stats/comments/modularity` and `/stats/endorsements/modularity` return just `{"modularity": ...}`, as the front end's Interactions page expects. `/stats/comments/colors` and `/stats/endorsements/colors` list the communities keyed by their colour, largest first: `{"total": <users>, "colors": {"users": {"#rrggbb": [user ids]}, "proposals": {"#rrggbb": {<title>: <members who took part>}}, "urls": {"#rrggbb": {<title>: <its page on Decidim>}}}}`, with the top `?proposals=` (default 3) proposals of each community (`urls` lists those whose address is known), titled in `?lang=` (`en`, `es` or `fr`; default `en`).
+
+`/stats/processes` lists the participatory processes with their `start_date` and `end_date` (`YYYY-MM-DD`, or `null`), earliest first, titled in `?lang=` (default `en`); the front end marks them on its time charts.
 
 The networks are cached; re-run the `generate_*_cache` commands after importing new data. If no cache exists, the first request computes it.
 
