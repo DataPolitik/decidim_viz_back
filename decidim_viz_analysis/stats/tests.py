@@ -3,13 +3,13 @@ import io
 import os
 import pickle
 import tempfile
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import numpy as np
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 
-from stats.models import Comment, Proposal, User
+from stats.models import Comment, ParticipatoryProcess, Proposal, User
 from scipy.stats import fisher_exact
 
 from stats.phi.phi import (build_network, distinct_colors, overlap_pvalue, phi_coefficient, phi_edges,
@@ -338,6 +338,67 @@ class ColorsEndpointTests(TestCase):
         response = self.client.get('/stats/comments/colors')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {'total': 0, 'colors': {'users': {}, 'proposals': {}, 'urls': {}}})
+
+
+PROCESS_COLUMNS = ['id', 'title/ca', 'title/en', 'title/es', 'title/machine_translations/fr', 'slug',
+                   'start_date', 'end_date', 'url']
+
+
+def process_row(id_, title_en, start, end, **extra):
+    row = {'id': id_, 'title/en': title_en, 'slug': 'process-{}'.format(id_), 'start_date': start, 'end_date': end,
+           'url': 'https://decidim.example.org/processes/process-{}'.format(id_)}
+    row.update(extra)
+    return row
+
+
+class ProcessTests(TestCase):
+    """Participatory processes: import (load_processes_from_csv) and /stats/processes."""
+
+    def load(self, rows):
+        with tempfile.TemporaryDirectory() as tmp:
+            call_command('load_processes_from_csv', write_csv(tmp, 'pp.csv', PROCESS_COLUMNS, rows), stdout=io.StringIO())
+
+    def test_imports_titles_dates_and_address(self):
+        self.load([process_row(7, 'Budget 2024', '2024-01-15', '2024-03-31', **{
+            'title/es': 'Presupuesto 2024', 'title/machine_translations/fr': 'Budget 2024 (fr)'})])
+        process = ParticipatoryProcess.objects.get(id_process=7)
+        self.assertEqual(process.titles, {'en': 'Budget 2024', 'es': 'Presupuesto 2024', 'fr': 'Budget 2024 (fr)'})
+        self.assertEqual((process.start_date, process.end_date), (date(2024, 1, 15), date(2024, 3, 31)))
+        self.assertEqual(process.url, 'https://decidim.example.org/processes/process-7')
+
+    def test_blank_or_invalid_dates_become_none(self):
+        self.load([process_row(1, 'Open-ended', '2023-05-01', ''), process_row(2, 'Odd', 'soon', '2023-13-40')])
+        self.assertIsNone(ParticipatoryProcess.objects.get(id_process=1).end_date)
+        self.assertEqual((ParticipatoryProcess.objects.get(id_process=2).start_date,
+                          ParticipatoryProcess.objects.get(id_process=2).end_date), (None, None))
+
+    def test_a_new_export_updates_existing_processes(self):
+        self.load([process_row(7, 'Budget', '2024-01-15', '')])
+        self.load([process_row(7, 'Budget', '2024-01-15', '2024-06-30'), process_row(8, 'New', '2025-01-01', '')])
+        self.assertEqual(ParticipatoryProcess.objects.get(id_process=7).end_date, date(2024, 6, 30))
+        self.assertEqual(ParticipatoryProcess.objects.count(), 2)
+
+    def test_endpoint_lists_processes_earliest_first(self):
+        self.load([process_row(2, 'Later', '2024-01-01', ''),
+                   process_row(1, 'Earlier', '2020-06-01', '2020-12-31', **{'title/es': 'Antes'})])
+        data = self.client.get('/stats/processes').json()
+        self.assertEqual(data, {'processes': [
+            {'id': 1, 'title': 'Earlier', 'start_date': '2020-06-01', 'end_date': '2020-12-31',
+             'url': 'https://decidim.example.org/processes/process-1'},
+            {'id': 2, 'title': 'Later', 'start_date': '2024-01-01', 'end_date': None,
+             'url': 'https://decidim.example.org/processes/process-2'},
+        ]})
+
+    def test_endpoint_title_language_falls_back_to_english(self):
+        self.load([process_row(1, 'Earlier', '2020-06-01', '', **{'title/es': 'Antes'}),
+                   process_row(2, '', '2021-01-01', '', **{'title/ca': 'Només en català'})])
+        titles = [p['title'] for p in self.client.get('/stats/processes?lang=es').json()['processes']]
+        self.assertEqual(titles, ['Antes', 'Només en català'])
+        titles = [p['title'] for p in self.client.get('/stats/processes?lang=fr').json()['processes']]
+        self.assertEqual(titles, ['Earlier', 'Només en català'])
+
+    def test_endpoint_without_processes(self):
+        self.assertEqual(self.client.get('/stats/processes').json(), {'processes': []})
 
 
 def comment_row(id_, author_id, name, proposal, depth=0, parent=None):
@@ -772,7 +833,7 @@ class RefreshFromOpenDataTests(TestCase):
         override.enable()
         self.addCleanup(override.disable)
 
-    def make_zip(self, with_proposals=True, with_comments=True):
+    def make_zip(self, with_proposals=True, with_comments=True, with_processes=True):
         import zipfile
         proposals = write_csv(self.tmp.name, 'p.csv', PROPOSAL_COLUMNS,
                               [proposal_row(1, 'Ana, Bob'), proposal_row(2, 'Ana, Bob')])
@@ -786,6 +847,9 @@ class RefreshFromOpenDataTests(TestCase):
                 zf.write(proposals, 'example.org-open-data-proposals.csv')
             if with_comments:
                 zf.write(comments, 'example.org-open-data-proposal_comments.csv')
+            if with_processes:
+                zf.write(write_csv(self.tmp.name, 'pp.csv', PROCESS_COLUMNS, [process_row(7, 'Budget 2024', '2024-01-15', '2024-03-31')]),
+                         'example.org-open-data-participatory_processes.csv')
         return path
 
     def test_imports_and_builds_the_networks_from_a_local_zip(self):
@@ -808,6 +872,19 @@ class RefreshFromOpenDataTests(TestCase):
         call_command('refresh_from_open_data', self.make_zip(with_comments=False), stdout=io.StringIO(), stderr=err)
         self.assertEqual(Proposal.objects.count(), 2)
         self.assertIn('no proposal comments', err.getvalue())
+
+    def test_imports_the_participatory_processes(self):
+        call_command('refresh_from_open_data', self.make_zip(), stdout=io.StringIO(), stderr=io.StringIO())
+        process = ParticipatoryProcess.objects.get()
+        self.assertEqual((process.title_in('en'), process.start_date, process.end_date),
+                         ('Budget 2024', date(2024, 1, 15), date(2024, 3, 31)))
+
+    def test_export_without_processes_still_imports_the_rest(self):
+        err = io.StringIO()
+        call_command('refresh_from_open_data', self.make_zip(with_processes=False), stdout=io.StringIO(), stderr=err)
+        self.assertEqual(Proposal.objects.count(), 2)
+        self.assertEqual(ParticipatoryProcess.objects.count(), 0)
+        self.assertIn('no participatory processes', err.getvalue())
 
     def test_export_without_proposals_fails_clearly(self):
         from django.core.management.base import CommandError

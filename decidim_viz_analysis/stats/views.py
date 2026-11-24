@@ -230,6 +230,14 @@ def get_instance(request):
     return JsonResponse(statistics.instance())
 
 
+def get_processes(request):
+    """Participatory processes with their start and end dates, earliest first.
+
+    Query parameter: lang (title language, default en; falls back to English, then any).
+    """
+    return JsonResponse(statistics.processes(request.GET.get('lang', 'en')))
+
+
 def get_participation_types(request):
     return JsonResponse(statistics.participation_types())
 

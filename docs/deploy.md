@@ -113,9 +113,10 @@ set -a; . ~/decidim_viz.env; set +a
 ```
 
 `refresh_from_open_data` downloads the instance's open-data export
-(`<instance>/open-data/download`), imports its proposals and comments, and
-rebuilds both networks. Replace `https://meta.decidim.org` with the instance
-you want to show; it can also take a local zip file.
+(`<instance>/open-data/download`), imports its proposals, comments and
+participatory processes, and rebuilds both networks. Replace
+`https://meta.decidim.org` with the instance you want to show; it can also take
+a local zip file.
 
 ## 5. Run the site
 

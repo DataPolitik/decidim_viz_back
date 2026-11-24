@@ -73,3 +73,30 @@ class Proposal(models.Model):
         """A title in any language: the original, else a translation, else the id."""
         return (self.proposal_title or self.proposal_title_en or self.proposal_title_es
                 or self.proposal_title_fr or '#{}'.format(self.id_proposal))
+
+
+class ParticipatoryProcess(models.Model):
+    """A participatory process of the instance, from the open-data export.
+
+    The dashboard marks when each one starts and ends on its time charts.
+    """
+    id_process = models.IntegerField(primary_key=True)
+    # Title per locale, e.g. {"en": "...", "es": "..."}; written titles win over machine translations.
+    titles = models.JSONField(default=dict)
+    slug = models.CharField(max_length=255, null=True)
+    start_date = models.DateField(null=True)
+    end_date = models.DateField(null=True)
+    url = models.CharField(max_length=300, null=True)
+
+    class Meta:
+        ordering = ['start_date', 'id_process']
+
+    def __str__(self):
+        return str(self.id_process)
+
+    def title_in(self, language):
+        """The title in that language, else English, else any."""
+        for locale in (language, 'en'):
+            if self.titles.get(locale):
+                return self.titles[locale]
+        return next(iter(self.titles.values()), '#{}'.format(self.id_process))

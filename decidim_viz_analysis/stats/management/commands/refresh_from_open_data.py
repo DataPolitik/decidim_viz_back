@@ -19,8 +19,8 @@ def find_member(names, suffix, exclude=None):
 
 
 class Command(BaseCommand):
-    help = ("Download a Decidim instance's open-data export, import its proposals and comments, "
-            "and rebuild the networks. Meant to run as a scheduled task.")
+    help = ("Download a Decidim instance's open-data export, import its proposals, comments and "
+            "participatory processes, and rebuild the networks. Meant to run as a scheduled task.")
 
     def add_arguments(self, parser):
         parser.add_argument('source', help=(
@@ -32,13 +32,17 @@ class Command(BaseCommand):
         workdir = Path(tempfile.mkdtemp(prefix='decidim-viz-'))
         try:
             archive = self._get_archive(source, workdir)
-            proposals, comments = self._extract(archive, workdir)
+            proposals, comments, processes = self._extract(archive, workdir)
 
             call_command('load_endorses_from_csv', str(proposals), stdout=self.stdout, stderr=self.stderr)
             if comments:
                 call_command('load_comments_from_csv', str(comments), stdout=self.stdout, stderr=self.stderr)
             else:
                 self.stderr.write('The export has no proposal comments; only proposals and endorsements were imported.')
+            if processes:
+                call_command('load_processes_from_csv', str(processes), stdout=self.stdout, stderr=self.stderr)
+            else:
+                self.stderr.write('The export has no participatory processes; their dates are not shown on the charts.')
             call_command('generate_endorses_cache', stdout=self.stdout)
             call_command('generate_comments_cache', stdout=self.stdout)
         finally:
@@ -67,10 +71,11 @@ class Command(BaseCommand):
                 names = zf.namelist()
                 proposals = find_member(names, 'proposals.csv', exclude='_proposals.csv')
                 comments = find_member(names, 'proposal_comments.csv')
+                processes = find_member(names, 'participatory_processes.csv')
                 if not proposals:
                     raise CommandError('No proposals CSV in the export (files: {})'.format(', '.join(names)))
                 extracted = []
-                for name in (proposals, comments):
+                for name in (proposals, comments, processes):
                     if name:
                         target = workdir / Path(name).name
                         with zf.open(name) as source, open(target, 'wb') as out:
@@ -78,6 +83,6 @@ class Command(BaseCommand):
                         extracted.append(target)
                     else:
                         extracted.append(None)
-                return extracted[0], extracted[1]
+                return extracted[0], extracted[1], extracted[2]
         except zipfile.BadZipFile:
             raise CommandError('{} is not a zip file'.format(archive))

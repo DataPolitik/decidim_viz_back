@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 import numpy as np
 from django.db.models import Count, Max, Min, Q
 
-from stats.models import Comment, Proposal, User
+from stats.models import Comment, ParticipatoryProcess, Proposal, User
 
 
 def gini(values):
@@ -62,6 +62,24 @@ def temporal_limits():
         'comments_from': iso(comments['first']),
         'comments_to': iso(comments['last']),
     }
+
+
+def processes(language='en'):
+    """The instance's participatory processes, earliest first: {'processes': [...]}.
+
+    Each has its id, title (in language, else English, else any), start_date and
+    end_date ("YYYY-MM-DD" or None) and its page on Decidim (url).
+    """
+    return {'processes': [
+        {
+            'id': process.id_process,
+            'title': process.title_in(language),
+            'start_date': process.start_date.isoformat() if process.start_date else None,
+            'end_date': process.end_date.isoformat() if process.end_date else None,
+            'url': process.url,
+        }
+        for process in ParticipatoryProcess.objects.all()
+    ]}
 
 
 def instance():
