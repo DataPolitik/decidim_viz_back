@@ -272,8 +272,10 @@ class ColorsEndpointTests(TestCase):
         settings_override.enable()
         self.addCleanup(settings_override.disable)
 
+        # Odd proposals have their own page; even ones have no known address.
         proposals = {i: Proposal.objects.create(id_proposal=i, proposal_title_en='EN {}'.format(i),
-                                                proposal_title_es='ES {}'.format(i), proposal_title_fr='')
+                                                proposal_title_es='ES {}'.format(i), proposal_title_fr='',
+                                                url='https://decidim.example.org/proposals/{}'.format(i) if i % 2 else None)
                      for i in range(1, 21)}
         self.groups = []
         for g, proposal_ids in enumerate((range(1, 6), range(6, 11))):
@@ -300,6 +302,18 @@ class ColorsEndpointTests(TestCase):
                 self.assertIn(int(title.split()[1]), group_proposals)
                 self.assertEqual(count, 5)
 
+    def test_urls_of_the_listed_proposals(self):
+        data = self.client.get('/stats/endorsements/colors?proposals=5').json()
+        proposals, urls = data['colors']['proposals'], data['colors']['urls']
+        self.assertEqual(set(urls), set(proposals))
+        for color, top in proposals.items():
+            for title in top:
+                number = int(title.split()[1])
+                if number % 2:
+                    self.assertEqual(urls[color][title], 'https://decidim.example.org/proposals/{}'.format(number))
+                else:
+                    self.assertNotIn(title, urls[color])
+
     def test_colors_match_the_network(self):
         data = self.client.get('/stats/endorsements/colors').json()
         network = self.client.get('/stats/endorsements/').json()
@@ -323,7 +337,7 @@ class ColorsEndpointTests(TestCase):
     def test_comments_colors(self):
         response = self.client.get('/stats/comments/colors')
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {'total': 0, 'colors': {'users': {}, 'proposals': {}}})
+        self.assertEqual(response.json(), {'total': 0, 'colors': {'users': {}, 'proposals': {}, 'urls': {}}})
 
 
 def comment_row(id_, author_id, name, proposal, depth=0, parent=None):

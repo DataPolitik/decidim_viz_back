@@ -89,10 +89,13 @@ def community_colors(kind, n_proposals=3, language='en'):
 
         {'total': number of users in the network,
          'colors': {'users':     {'#rrggbb': [user ids]},
-                    'proposals': {'#rrggbb': {proposal title: members who took part}}}}
+                    'proposals': {'#rrggbb': {proposal title: members who took part}},
+                    'urls':      {'#rrggbb': {proposal title: its page on Decidim}}}}
 
     Communities are listed from largest to smallest. For each one, the
-    n_proposals proposals with the most participating members are given.
+    n_proposals proposals with the most participating members are given. 'urls'
+    has the same titles, for the proposals whose address is known, so a title
+    such as "Section 2 of the original text" can be read on Decidim.
     """
     network = get_network(kind)
     title_fields = TITLE_FIELDS.get(language, TITLE_FIELDS['en'])
@@ -109,21 +112,25 @@ def community_colors(kind, n_proposals=3, language='en'):
         top_proposals[color] = counts.most_common(n_proposals)
 
     proposal_ids = {proposal for top in top_proposals.values() for proposal, _ in top}
-    titles = {}
-    for row in Proposal.objects.filter(id_proposal__in=proposal_ids).values('id_proposal', *title_fields):
+    titles, addresses = {}, {}
+    for row in Proposal.objects.filter(id_proposal__in=proposal_ids).values('id_proposal', 'url', *title_fields):
         titles[row['id_proposal']] = next((row[field] for field in title_fields if row[field]),
                                           '#{}'.format(row['id_proposal']))
+        if row['url']:
+            addresses[row['id_proposal']] = row['url']
 
-    proposals = {}
+    proposals, urls = {}, {}
     for color, top in top_proposals.items():
-        proposals[color] = {}
+        proposals[color], urls[color] = {}, {}
         for proposal, count in top:
             title = titles.get(proposal, '#{}'.format(proposal))
             if title in proposals[color]:  # two proposals with the same title
                 title = '{} (#{})'.format(title, proposal)
             proposals[color][title] = count
+            if proposal in addresses:
+                urls[color][title] = addresses[proposal]
 
     return {
         'total': len(network['colors']),
-        'colors': {'users': members, 'proposals': proposals},
+        'colors': {'users': members, 'proposals': proposals, 'urls': urls},
     }
